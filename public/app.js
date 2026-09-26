@@ -7,7 +7,7 @@ import {
   moveCoverFlowIndex,
   settleCoverFlowDrag,
 } from "./coverflow.js";
-import { toggleRotationAlbum } from "./rotation.js";
+import { removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -28,6 +28,7 @@ const rotationToggleButton = document.querySelector("#rotation-toggle");
 const rotationDuration = document.querySelector("#rotation-duration");
 const rotationMode = document.querySelector("#rotation-mode");
 const rotationPlayButton = document.querySelector("#rotation-play");
+const rotationAlbumsElement = document.querySelector("#rotation-albums");
 
 let state;
 let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", expiresAt: null };
@@ -320,6 +321,46 @@ function renderRotation() {
   document.querySelector("#rotation-status").textContent = rotation.albumIds.length
     ? `${rotation.albumIds.length} album${rotation.albumIds.length === 1 ? "" : "s"} · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
     : "No albums selected.";
+
+  rotationAlbumsElement.hidden = rotation.albums.length === 0;
+  rotationAlbumsElement.replaceChildren(...rotation.albums.map((album, index) => {
+    const item = document.createElement("article");
+    item.className = "rotation-album";
+    item.setAttribute("role", "listitem");
+
+    const artwork = document.createElement("span");
+    artwork.className = "rotation-album-art";
+    if (album.imageUrl) {
+      const image = document.createElement("img");
+      image.src = album.imageUrl;
+      image.alt = "";
+      image.loading = "lazy";
+      artwork.append(image);
+    }
+
+    const copy = document.createElement("span");
+    copy.className = "rotation-album-copy";
+    const position = document.createElement("small");
+    position.textContent = String(index + 1).padStart(2, "0");
+    const title = document.createElement("strong");
+    title.textContent = album.title;
+    const artist = document.createElement("span");
+    artist.textContent = album.artist;
+    copy.append(position, title, artist);
+
+    const removeButton = document.createElement("button");
+    removeButton.className = "rotation-remove";
+    removeButton.type = "button";
+    removeButton.textContent = "Remove";
+    removeButton.setAttribute("aria-label", `Remove ${album.title} from rotation`);
+    removeButton.addEventListener("click", async () => {
+      removeButton.disabled = true;
+      await saveRotation(removeRotationAlbum(rotation.albumIds, album.id));
+    });
+
+    item.append(artwork, copy, removeButton);
+    return item;
+  }));
 }
 
 async function saveRotation(albumIds = rotation.albumIds) {

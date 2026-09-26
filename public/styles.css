@@ -328,6 +328,35 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .rotation-play { min-height: 36px; border: 1px solid var(--ink); border-radius: 8px; padding: 0 13px; background: var(--ink); color: var(--acid); font-family: "DM Mono", monospace; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
 .rotation-play:disabled { opacity: .4; cursor: not-allowed; }
 .rotation-card-button { border-color: #718520; }
+.rotation-albums {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+  padding-top: 4px;
+}
+.rotation-albums[hidden] { display: none; }
+.rotation-album {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.rotation-album-art { width: 48px; height: 48px; overflow: hidden; border-radius: 6px; background: #2d2d29; }
+.rotation-album-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rotation-album-copy { min-width: 0; }
+.rotation-album-copy small, .rotation-album-copy strong, .rotation-album-copy span { display: block; }
+.rotation-album-copy small { margin-bottom: 2px; color: #627900; font: 8px "DM Mono", monospace; letter-spacing: .1em; }
+.rotation-album-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.rotation-album-copy span { overflow: hidden; margin-top: 2px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.rotation-remove { border: 0; border-bottom: 1px solid currentColor; padding: 4px 0; background: transparent; color: var(--muted); font: 8px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
+.rotation-remove:hover { color: var(--ink); }
+.rotation-remove:disabled { opacity: .4; }
 
 .target-card {
   appearance: none;

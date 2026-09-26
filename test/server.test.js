@@ -37,6 +37,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="rotation-toggle"/);
     assert.match(html, /id="rotation-duration"/);
     assert.match(html, /id="rotation-mode"/);
+    assert.match(html, /id="rotation-albums"/);
     assert.match(html, /id="rotation-play"/);
     assert.match(html, /id="playback-toggle"/);
     assert.match(html, /id="playback-next"/);
