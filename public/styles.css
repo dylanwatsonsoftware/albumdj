@@ -243,8 +243,18 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 }
 
 .coverflow:focus-visible { box-shadow: 0 0 0 3px var(--acid); }
-.coverflow-stage { position: relative; height: 330px; perspective: 900px; transform-style: preserve-3d; }
+.coverflow-stage {
+  position: relative;
+  height: 330px;
+  perspective: 900px;
+  transform-style: preserve-3d;
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
 .coverflow-stage.empty { display: grid; place-items: center; color: #aaa99f; font-size: 12px; }
+.coverflow.dragging .coverflow-stage { cursor: grabbing; }
+.coverflow.dragging .coverflow-cover { transition: none; pointer-events: none; }
 
 .coverflow-cover {
   position: absolute;

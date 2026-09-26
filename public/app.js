@@ -1,7 +1,12 @@
 import { scanAlbumCards, writeAlbumCard } from "./nfc.js";
 import { refreshSpotifyOnLoad } from "./spotify-sync.js";
 import { createPlaybackMonitor } from "./live-playback.js";
-import { getCoverFlowWindow, moveCoverFlowIndex } from "./coverflow.js";
+import {
+  getCoverFlowDragPosition,
+  getCoverFlowWindow,
+  moveCoverFlowIndex,
+  settleCoverFlowDrag,
+} from "./coverflow.js";
 import { toggleRotationAlbum } from "./rotation.js";
 
 const targetsElement = document.querySelector("#targets");
@@ -29,8 +34,12 @@ let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", 
 let livePlayback = null;
 let playbackMonitor = null;
 let activeCoverIndex = 0;
-let touchStartX = null;
 let coverflowSource = "all";
+let dragPosition = null;
+let dragGesture = null;
+let suppressCoverClick = false;
+
+const COVER_SPACING = 105;
 
 function renderSpotifyStatus(status) {
   const statusText = document.querySelector("#spotify-status");
@@ -180,12 +189,15 @@ function renderCoverFlow() {
   }
   coverflowStage.classList.remove("empty");
   activeCoverIndex = moveCoverFlowIndex(activeCoverIndex, 0, albums.length);
-  const activeAlbum = albums[activeCoverIndex];
+  const visiblePosition = dragPosition ?? activeCoverIndex;
+  const focusedIndex = moveCoverFlowIndex(Math.round(visiblePosition), 0, albums.length);
+  const activeAlbum = albums[focusedIndex];
 
-  coverflowStage.replaceChildren(...getCoverFlowWindow(albums, activeCoverIndex).map(({ album, index, offset }) => {
+  coverflowStage.replaceChildren(...getCoverFlowWindow(albums, focusedIndex, 4).map(({ album, index }) => {
+    const offset = index - visiblePosition;
     const button = document.createElement("button");
     button.className = "coverflow-cover";
-    button.classList.toggle("active", offset === 0);
+    button.classList.toggle("active", index === focusedIndex);
     button.type = "button";
     button.dataset.albumId = album.id;
     button.style.setProperty("--flow-x", `${offset * 105}px`);
@@ -200,7 +212,8 @@ function renderCoverFlow() {
       const image = document.createElement("img");
       image.src = album.imageUrl;
       image.alt = "";
-      image.loading = Math.abs(offset) <= 1 ? "eager" : "lazy";
+      image.draggable = false;
+      image.loading = Math.abs(offset) <= 1.5 ? "eager" : "lazy";
       button.append(image);
     } else {
       button.textContent = album.title;
@@ -208,7 +221,8 @@ function renderCoverFlow() {
     }
 
     button.addEventListener("click", () => {
-      if (index === activeCoverIndex) scanAlbum(album.id);
+      if (suppressCoverClick) return;
+      if (index === focusedIndex) scanAlbum(album.id);
       else {
         activeCoverIndex = index;
         renderCoverFlow();
@@ -217,15 +231,69 @@ function renderCoverFlow() {
     return button;
   }));
 
-  document.querySelector("#coverflow-position").textContent = `${activeCoverIndex + 1} / ${albums.length}`;
+  document.querySelector("#coverflow-position").textContent = `${focusedIndex + 1} / ${albums.length}`;
   document.querySelector("#coverflow-title").textContent = activeAlbum.title;
   document.querySelector("#coverflow-artist").textContent = activeAlbum.artist;
-  document.querySelector("#coverflow-previous").disabled = activeCoverIndex === 0;
-  document.querySelector("#coverflow-next").disabled = activeCoverIndex === albums.length - 1;
+  document.querySelector("#coverflow-previous").disabled = focusedIndex === 0;
+  document.querySelector("#coverflow-next").disabled = focusedIndex === albums.length - 1;
   coverflowPlayButton.disabled = false;
   coverflowPairButton.disabled = !("NDEFReader" in globalThis);
   rotationToggleButton.disabled = false;
   rotationToggleButton.textContent = rotation.albumIds.includes(activeAlbum.id) ? "Remove from rotation" : "Add to rotation";
+}
+
+function beginCoverFlowDrag(event) {
+  if ((event.button ?? 0) !== 0 || !flowAlbums().length) return;
+  dragGesture = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startIndex: activeCoverIndex,
+    lastX: event.clientX,
+    lastTime: event.timeStamp,
+    velocityX: 0,
+    moved: false,
+  };
+  dragPosition = activeCoverIndex;
+  coverflowStage.setPointerCapture?.(event.pointerId);
+  coverflowElement.classList.add("dragging");
+}
+
+function updateCoverFlowDrag(event) {
+  if (!dragGesture || event.pointerId !== dragGesture.pointerId) return;
+  const elapsed = event.timeStamp - dragGesture.lastTime;
+  const movement = event.clientX - dragGesture.lastX;
+  if (elapsed > 0) dragGesture.velocityX = movement / elapsed;
+  dragGesture.lastX = event.clientX;
+  dragGesture.lastTime = event.timeStamp;
+  dragGesture.moved ||= Math.abs(event.clientX - dragGesture.startX) > 6;
+  dragPosition = getCoverFlowDragPosition({
+    startIndex: dragGesture.startIndex,
+    displacementX: event.clientX - dragGesture.startX,
+    albumCount: flowAlbums().length,
+    spacing: COVER_SPACING,
+  });
+  renderCoverFlow();
+}
+
+function finishCoverFlowDrag(event) {
+  if (!dragGesture || event.pointerId !== dragGesture.pointerId) return;
+  const gesture = dragGesture;
+  const velocityX = event.timeStamp - gesture.lastTime > 100 ? 0 : gesture.velocityX;
+  activeCoverIndex = settleCoverFlowDrag({
+    position: dragPosition ?? gesture.startIndex,
+    velocityX,
+    albumCount: flowAlbums().length,
+    spacing: COVER_SPACING,
+  });
+  dragGesture = null;
+  dragPosition = null;
+  coverflowElement.classList.remove("dragging");
+  renderCoverFlow();
+
+  if (gesture.moved) {
+    suppressCoverClick = true;
+    setTimeout(() => { suppressCoverClick = false; }, 0);
+  }
 }
 
 function moveCoverFlow(delta) {
@@ -435,15 +503,10 @@ coverflowElement.addEventListener("keydown", (event) => {
     moveCoverFlow(event.key === "ArrowLeft" ? -1 : 1);
   }
 });
-coverflowElement.addEventListener("touchstart", (event) => {
-  touchStartX = event.changedTouches[0].clientX;
-}, { passive: true });
-coverflowElement.addEventListener("touchend", (event) => {
-  if (touchStartX === null) return;
-  const distance = event.changedTouches[0].clientX - touchStartX;
-  touchStartX = null;
-  if (Math.abs(distance) > 40) moveCoverFlow(distance > 0 ? -1 : 1);
-}, { passive: true });
+coverflowStage.addEventListener("pointerdown", beginCoverFlowDrag);
+coverflowStage.addEventListener("pointermove", updateCoverFlowDrag);
+coverflowStage.addEventListener("pointerup", finishCoverFlowDrag);
+coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
 
 const spotifyStatus = await request("/api/spotify/status");
 if (spotifyStatus.connected) {
