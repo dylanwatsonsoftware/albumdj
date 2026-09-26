@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f2eee4">
+    <title>Physical Favourites</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div>
+          <p class="eyebrow">Spotify, made tangible</p>
+          <h1>Physical<br>Favourites</h1>
+        </div>
+        <div class="prototype-badge">Prototype 01</div>
+      </header>
+
+      <section class="spotify-connect" aria-labelledby="spotify-heading">
+        <div class="spotify-panel">
+          <div class="spotify-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="spotify-copy">
+            <p class="step">Spotify account</p>
+            <h2 id="spotify-heading">Connect Spotify</h2>
+            <p id="spotify-status">Checking connection…</p>
+          </div>
+          <a id="spotify-connect-button" class="connect-button" href="/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
+          <span id="spotify-connected-badge" class="connected-badge" hidden>Connected</span>
+        </div>
+      </section>
+
+      <section class="destination" aria-labelledby="destination-heading">
+        <div class="section-copy">
+          <p class="step">01</p>
+          <div>
+            <h2 id="destination-heading">Choose where to listen</h2>
+            <p id="destination-status">Choose an available Spotify Connect device.</p>
+          </div>
+        </div>
+        <button id="refresh-devices" class="refresh-button" type="button">Refresh devices</button>
+        <div id="targets" class="target-list" role="list"></div>
+      </section>
+
+      <section class="scanner" aria-labelledby="scanner-heading">
+        <div class="section-copy">
+          <p class="step">02</p>
+          <div>
+            <h2 id="scanner-heading">Pretend to scan a card</h2>
+            <p>Tap an album below. This stands in for the NFC reader.</p>
+          </div>
+        </div>
+        <div id="albums" class="album-grid"></div>
+      </section>
+    </main>
+
+    <aside id="now-playing" class="now-playing" aria-live="polite" hidden>
+      <div id="mini-art" class="mini-art"></div>
+      <div class="now-copy">
+        <p id="playback-mode">Simulated playback</p>
+        <strong id="now-title"></strong>
+        <span id="now-target"></span>
+      </div>
+      <div class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    </aside>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
