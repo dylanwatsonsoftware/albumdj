@@ -8,6 +8,7 @@ import { albums, targets } from "./catalog.js";
 import { createPlayerState } from "./player-state.js";
 import { createSpotifyClient } from "./spotify-client.js";
 import { createJsonSessionStore } from "./session-store.js";
+import { buildRotationQueue, createRotationShelf } from "./rotation-shelf.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = join(here, "..", "public");
@@ -16,6 +17,11 @@ const assets = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
+  ["/nfc.js", ["nfc.js", "text/javascript; charset=utf-8"]],
+  ["/spotify-sync.js", ["spotify-sync.js", "text/javascript; charset=utf-8"]],
+  ["/live-playback.js", ["live-playback.js", "text/javascript; charset=utf-8"]],
+  ["/coverflow.js", ["coverflow.js", "text/javascript; charset=utf-8"]],
+  ["/rotation.js", ["rotation.js", "text/javascript; charset=utf-8"]],
 ]);
 
 function sendJson(response, status, value) {
@@ -36,6 +42,18 @@ export function createPrototypeServer(options = {}) {
     redirectUri: process.env.SPOTIFY_REDIRECT_URI || "http://127.0.0.1:8787/auth/spotify/callback",
     sessionStore: createJsonSessionStore(join(here, "..", ".data", "spotify-session.json")),
   });
+  const rotation = options.rotation ?? createRotationShelf({
+    store: createJsonSessionStore(join(here, "..", ".data", "rotation-shelf.json")),
+  });
+
+  function rotationState() {
+    const snapshot = rotation.snapshot();
+    const albumById = new Map(player.snapshot().albums.map((album) => [album.id, album]));
+    return {
+      ...snapshot,
+      albums: snapshot.albumIds.map((id) => albumById.get(id)).filter(Boolean),
+    };
+  }
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, "http://prototype.local");
@@ -53,6 +71,28 @@ export function createPrototypeServer(options = {}) {
         return sendJson(response, 200, await spotify.getSavedAlbums());
       }
 
+      if (request.method === "GET" && url.pathname === "/api/spotify/playback") {
+        return sendJson(response, 200, await spotify.getCurrentPlayback());
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/spotify/playback/pause") {
+        await spotify.pausePlayback();
+        response.writeHead(204);
+        return response.end();
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/spotify/playback/resume") {
+        await spotify.resumePlayback();
+        response.writeHead(204);
+        return response.end();
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/spotify/playback/next") {
+        await spotify.skipNext();
+        response.writeHead(204);
+        return response.end();
+      }
+
       if (request.method === "POST" && url.pathname === "/api/spotify/import") {
         player.replaceAlbums(await spotify.getSavedAlbums());
         return sendJson(response, 200, player.snapshot());
@@ -61,6 +101,44 @@ export function createPrototypeServer(options = {}) {
       if (request.method === "POST" && url.pathname === "/api/spotify/devices") {
         player.replaceTargets(await spotify.getAvailableDevices());
         return sendJson(response, 200, player.snapshot());
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/rotation") {
+        return sendJson(response, 200, rotationState());
+      }
+
+      if (request.method === "PUT" && url.pathname === "/api/rotation") {
+        const nextRotation = await readJson(request);
+        const knownAlbums = new Set(player.snapshot().albums.map(({ id }) => id));
+        if (nextRotation.albumIds.some((id) => !knownAlbums.has(id))) {
+          throw new Error("Rotation contains an unknown album");
+        }
+        rotation.update(nextRotation);
+        return sendJson(response, 200, rotationState());
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/rotation/play") {
+        const currentRotation = rotation.snapshot();
+        if (!currentRotation.albumIds.length) throw new Error("Add at least one album to the rotation");
+        const tracksByAlbum = new Map();
+        for (const albumId of currentRotation.albumIds) {
+          tracksByAlbum.set(albumId, await spotify.getAlbumTracks(albumId));
+        }
+        const trackUris = buildRotationQueue({
+          albumIds: currentRotation.albumIds,
+          tracksByAlbum,
+          mode: currentRotation.mode,
+        });
+        if (!trackUris.length) throw new Error("No playable tracks found in this rotation");
+        await spotify.playTracks({
+          deviceId: player.snapshot().selectedTargetId,
+          trackUris,
+        });
+        return sendJson(response, 200, {
+          albumCount: currentRotation.albumIds.length,
+          trackCount: trackUris.length,
+          mode: currentRotation.mode,
+        });
       }
 
       if (request.method === "GET" && url.pathname === "/auth/spotify") {

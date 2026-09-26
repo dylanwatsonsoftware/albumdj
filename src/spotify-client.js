@@ -174,5 +174,93 @@ export function createSpotifyClient({
       );
       if (!response.ok) throw new Error(`Spotify playback failed (${response.status})`);
     },
+
+    async getCurrentPlayback() {
+      const accessToken = await ensureAccessToken();
+      const response = await fetchImpl("https://api.spotify.com/v1/me/player", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (response.status === 204) return null;
+      if (!response.ok) throw new Error(`Spotify playback state failed (${response.status})`);
+      const playback = await response.json();
+      if (!playback.item) return null;
+      return {
+        isPlaying: playback.is_playing,
+        progressMs: playback.progress_ms,
+        durationMs: playback.item.duration_ms,
+        device: playback.device ? {
+          id: playback.device.id,
+          name: playback.device.name,
+          kind: playback.device.type.toLowerCase(),
+        } : null,
+        track: {
+          id: playback.item.id,
+          title: playback.item.name,
+          artist: playback.item.artists.map(({ name }) => name).join(", "),
+        },
+        album: {
+          id: playback.item.album.id,
+          title: playback.item.album.name,
+          spotifyUri: playback.item.album.uri,
+          imageUrl: playback.item.album.images[0]?.url ?? null,
+        },
+      };
+    },
+
+    async pausePlayback() {
+      const accessToken = await ensureAccessToken();
+      const response = await fetchImpl("https://api.spotify.com/v1/me/player/pause", {
+        method: "PUT",
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Spotify pause failed (${response.status})`);
+    },
+
+    async resumePlayback() {
+      const accessToken = await ensureAccessToken();
+      const response = await fetchImpl("https://api.spotify.com/v1/me/player/play", {
+        method: "PUT",
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Spotify resume failed (${response.status})`);
+    },
+
+    async skipNext() {
+      const accessToken = await ensureAccessToken();
+      const response = await fetchImpl("https://api.spotify.com/v1/me/player/next", {
+        method: "POST",
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Spotify skip failed (${response.status})`);
+    },
+
+    async getAlbumTracks(albumId) {
+      const trackUris = [];
+      let next = `/albums/${encodeURIComponent(albumId)}/tracks?limit=50`;
+      while (next) {
+        const page = await spotifyJson(next);
+        trackUris.push(...page.items
+          .filter((track) => track.is_playable !== false)
+          .map((track) => track.uri));
+        next = page.next;
+      }
+      return trackUris;
+    },
+
+    async playTracks({ deviceId, trackUris }) {
+      const accessToken = await ensureAccessToken();
+      const response = await fetchImpl(
+        `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`,
+        {
+          method: "PUT",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ uris: trackUris }),
+        },
+      );
+      if (!response.ok) throw new Error(`Spotify rotation playback failed (${response.status})`);
+    },
   };
 }

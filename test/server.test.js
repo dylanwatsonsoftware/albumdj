@@ -27,7 +27,20 @@ test("serves the mobile card-scanner interface", async () => {
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/html/);
     assert.match(html, /Choose where to listen/);
-    assert.match(html, /Pretend to scan a card/);
+    assert.match(html, /Scan an NFC card/);
+    assert.match(html, /id="scan-nfc"/);
+    assert.match(html, /id="nfc-status"/);
+    assert.match(html, /id="coverflow"/);
+    assert.match(html, /id="coverflow-stage"/);
+    assert.match(html, /id="album-view-grid"/);
+    assert.match(html, /id="album-view-rotation"/);
+    assert.match(html, /id="rotation-toggle"/);
+    assert.match(html, /id="rotation-duration"/);
+    assert.match(html, /id="rotation-mode"/);
+    assert.match(html, /id="rotation-play"/);
+    assert.match(html, /id="playback-toggle"/);
+    assert.match(html, /id="playback-next"/);
+    assert.match(html, /id="now-album"/);
     assert.match(html, /Connect Spotify/);
   });
 });
@@ -115,6 +128,38 @@ test("returns saved albums from the connected Spotify account", async () => {
   }, { spotify });
 });
 
+test("returns Spotify's actual current playback", async () => {
+  const currentPlayback = { isPlaying: true, track: { title: "Real Song" } };
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getCurrentPlayback: async () => currentPlayback,
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/playback`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), currentPlayback);
+  }, { spotify });
+});
+
+test("pauses, resumes, and skips Spotify playback", async () => {
+  const commands = [];
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    pausePlayback: async () => commands.push("pause"),
+    resumePlayback: async () => commands.push("resume"),
+    skipNext: async () => commands.push("next"),
+  };
+
+  await withServer(async (baseUrl) => {
+    for (const action of ["pause", "resume", "next"]) {
+      const response = await fetch(`${baseUrl}/api/spotify/playback/${action}`, { method: "POST" });
+      assert.equal(response.status, 204);
+    }
+    assert.deepEqual(commands, ["pause", "resume", "next"]);
+  }, { spotify });
+});
+
 test("imports saved Spotify albums into the scannable catalogue", async () => {
   const savedAlbums = [{
     id: "album-1",
@@ -190,4 +235,52 @@ test("returns a useful client error for an unknown card", async () => {
     assert.equal(response.status, 400);
     assert.match(body.error, /Unknown album/);
   });
+});
+
+test("configures and returns the temporary rotation shelf", async () => {
+  let configured = { albumIds: [], durationDays: 7, mode: "sequential", expiresAt: null };
+  const rotation = {
+    snapshot: () => configured,
+    update: (next) => { configured = { ...next, expiresAt: 123 }; return configured; },
+  };
+
+  await withServer(async (baseUrl) => {
+    const updated = await fetch(`${baseUrl}/api/rotation`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albumIds: ["discovery", "currents"], durationDays: 14, mode: "shuffle" }),
+    });
+    assert.equal(updated.status, 200);
+    const body = await updated.json();
+    assert.deepEqual(body.albumIds, ["discovery", "currents"]);
+    assert.deepEqual(body.albums.map(({ id }) => id), ["discovery", "currents"]);
+
+    const fetched = await (await fetch(`${baseUrl}/api/rotation`)).json();
+    assert.deepEqual(fetched, body);
+  }, { rotation });
+});
+
+test("plays every track from the rotation shelf", async () => {
+  let playCommand;
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getAlbumTracks: async (albumId) => [`spotify:track:${albumId}-1`, `spotify:track:${albumId}-2`],
+    playTracks: async (command) => { playCommand = command; },
+  };
+  const rotation = {
+    snapshot: () => ({ albumIds: ["discovery", "currents"], durationDays: 7, mode: "sequential", expiresAt: 123 }),
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/rotation/play`, { method: "POST" });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { albumCount: 2, trackCount: 4, mode: "sequential" });
+    assert.deepEqual(playCommand, {
+      deviceId: "whole-house",
+      trackUris: [
+        "spotify:track:discovery-1", "spotify:track:discovery-2",
+        "spotify:track:currents-1", "spotify:track:currents-2",
+      ],
+    });
+  }, { spotify, rotation });
 });

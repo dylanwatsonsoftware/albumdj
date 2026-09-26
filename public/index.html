@@ -47,11 +47,67 @@
         <div class="section-copy">
           <p class="step">02</p>
           <div>
-            <h2 id="scanner-heading">Pretend to scan a card</h2>
-            <p>Tap an album below. This stands in for the NFC reader.</p>
+            <h2 id="scanner-heading">Scan an NFC card</h2>
+            <p>Start the reader, then tap a paired album card to your phone.</p>
           </div>
         </div>
-        <div id="albums" class="album-grid"></div>
+        <div class="nfc-panel">
+          <div>
+            <strong>Phone NFC reader</strong>
+            <p id="nfc-status" role="status">Checking NFC support…</p>
+          </div>
+          <button id="scan-nfc" class="nfc-button" type="button">Start scanning</button>
+        </div>
+        <div class="section-copy catalogue-heading">
+          <p class="step">03</p>
+          <div>
+            <h2>Choose an album</h2>
+            <p>Swipe through your collection, then play it or pair it to a physical card.</p>
+          </div>
+        </div>
+        <div class="album-view-switch" role="group" aria-label="Album view">
+          <button id="album-view-coverflow" type="button" aria-pressed="true">Cover Flow</button>
+          <button id="album-view-rotation" type="button" aria-pressed="false">Rotation</button>
+          <button id="album-view-grid" type="button" aria-pressed="false">Grid</button>
+        </div>
+        <div id="coverflow" class="coverflow" tabindex="0" aria-label="Album Cover Flow">
+          <button id="coverflow-previous" class="flow-arrow previous" type="button" aria-label="Previous album">←</button>
+          <div id="coverflow-stage" class="coverflow-stage"></div>
+          <button id="coverflow-next" class="flow-arrow next" type="button" aria-label="Next album">→</button>
+          <div class="coverflow-details">
+            <p id="coverflow-position" class="coverflow-position"></p>
+            <h3 id="coverflow-title"></h3>
+            <p id="coverflow-artist"></p>
+            <div class="coverflow-actions">
+              <button id="coverflow-play" class="flow-action primary" type="button">Play album</button>
+              <button id="rotation-toggle" class="flow-action" type="button">Add to rotation</button>
+              <button id="coverflow-pair" class="flow-action" type="button">Pair NFC card</button>
+            </div>
+          </div>
+        </div>
+        <div class="rotation-panel" aria-labelledby="rotation-heading">
+          <div>
+            <p class="step">Rotation shelf</p>
+            <h3 id="rotation-heading">A short stack for now</h3>
+            <p id="rotation-status">No albums selected.</p>
+          </div>
+          <label>
+            Keep for
+            <select id="rotation-duration">
+              <option value="7">1 week</option>
+              <option value="14">2 weeks</option>
+            </select>
+          </label>
+          <label>
+            Play as
+            <select id="rotation-mode">
+              <option value="sequential">Albums in order</option>
+              <option value="shuffle">Shuffle every song</option>
+            </select>
+          </label>
+          <button id="rotation-play" class="rotation-play" type="button" disabled>Play rotation</button>
+        </div>
+        <div id="albums" class="album-grid" hidden></div>
       </section>
     </main>
 
@@ -60,9 +116,13 @@
       <div class="now-copy">
         <p id="playback-mode">Simulated playback</p>
         <strong id="now-title"></strong>
+        <span id="now-album"></span>
         <span id="now-target"></span>
       </div>
-      <div class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="playback-controls">
+        <button id="playback-toggle" class="player-control primary" type="button" aria-label="Pause Spotify playback">Ⅱ</button>
+        <button id="playback-next" class="player-control" type="button" aria-label="Skip to next Spotify track">▶Ⅰ</button>
+      </div>
     </aside>
 
     <script type="module" src="/app.js"></script>
