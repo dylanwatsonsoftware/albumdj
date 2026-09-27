@@ -86,6 +86,11 @@ test("serves the mobile card-scanner interface", async () => {
       .map(([, names, path]) => [path, names]));
     assert.match(moduleImports.get("./discovery.js"), /artistReleaseErrorMessage/);
     assert.doesNotMatch(moduleImports.get("./coverflow.js"), /artistReleaseErrorMessage/);
+
+    const styles = await (await fetch(`${baseUrl}/styles.css`)).text();
+    assert.match(styles, /color-scheme:\s*dark/);
+    assert.match(styles, /--paper:\s*#0d0e0c/);
+    assert.match(styles, /--card:\s*#191a17/);
   });
 });
 
