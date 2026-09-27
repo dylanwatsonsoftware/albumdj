@@ -3,3 +3,10 @@ node_modules/
 .vercel
 .env*
 !.env.example
+
+# Android build and machine-specific files
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.idea/
+*.iml

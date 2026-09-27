@@ -57,6 +57,10 @@ npm test
 
 The tests cover destination selection, Spotify authorization and playback, serverless PKCE restoration, signed browser sessions, isolated Firestore state, device refresh, NFC encoding and scanning, stack expiry and queueing, invalid cards, the local API, and the mobile interface route.
 
+## Android and Android Auto prototype
+
+The [`android`](android/) module contains the first native app shell and a Media3 library service that Android Auto can browse. It currently uses a small fixture stack so the car content structure can be tested before Spotify login, Firebase sync, and NFC are connected. Build and Desktop Head Unit instructions are in [`android/README.md`](android/README.md).
+
 ## How it fits together
 
 ```text
