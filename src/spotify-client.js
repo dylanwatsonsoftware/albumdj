@@ -17,14 +17,15 @@ export function createSpotifyClient({
   randomBytes = secureRandomBytes,
   now = Date.now,
   sessionStore = { load: () => null, save: () => {} },
+  initialSession,
 }) {
-  let pendingAuthorization = null;
-  const restoredSession = sessionStore.load() ?? {};
+  const restoredSession = initialSession ?? sessionStore.load() ?? {};
+  let pendingAuthorization = restoredSession.pendingAuthorization ?? null;
   let token = restoredSession.token ?? null;
   let profile = restoredSession.profile ?? null;
 
-  function saveSession() {
-    sessionStore.save({ token, profile });
+  async function saveSession() {
+    await sessionStore.save({ token, profile, pendingAuthorization });
   }
 
   async function ensureAccessToken() {
@@ -48,7 +49,7 @@ export function createSpotifyClient({
       refreshToken: payload.refresh_token ?? token.refreshToken,
       expiresAt: now() + payload.expires_in * 1000,
     };
-    saveSession();
+    await saveSession();
     return token.accessToken;
   }
 
@@ -63,13 +64,14 @@ export function createSpotifyClient({
   }
 
   return {
-    beginAuthorization() {
+    async beginAuthorization() {
       if (!clientId || !redirectUri) throw new Error("Spotify is not configured");
 
       const verifier = base64Url(randomBytes(48));
       const state = base64Url(randomBytes(24));
       const challenge = createHash("sha256").update(verifier).digest("base64url");
       pendingAuthorization = { verifier, state };
+      await saveSession();
 
       const authorizationUrl = new URL("https://accounts.spotify.com/authorize");
       authorizationUrl.search = new URLSearchParams({
@@ -115,7 +117,7 @@ export function createSpotifyClient({
         id: spotifyProfile.id,
         displayName: spotifyProfile.display_name || spotifyProfile.id,
       };
-      saveSession();
+      await saveSession();
       return profile;
     },
 

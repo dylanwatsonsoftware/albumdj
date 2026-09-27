@@ -1,0 +1,14 @@
+{
+  "regions": ["syd1"],
+  "rewrites": [
+    {
+      "source": "/api/:route*",
+      "destination": "/api?route=:route"
+    }
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  }
+}

@@ -1,11 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createPrototypeServer } from "../src/server.js";
+import { createPrototypeHandler, createPrototypeServer } from "../src/server.js";
+import { createPlayerState } from "../src/player-state.js";
+import { createRotationShelf } from "../src/rotation-shelf.js";
 
 const disconnectedSpotify = {
   status: () => ({ configured: false, connected: false, profile: null }),
 };
+
+test("exports an awaitable request handler for serverless hosting", () => {
+  assert.equal(typeof createPrototypeHandler, "function");
+});
 
 async function withServer(run, options) {
   const server = createPrototypeServer({ spotify: disconnectedSpotify, ...options });
@@ -26,6 +32,7 @@ test("serves the mobile card-scanner interface", async () => {
 
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/html/);
+    assert.match(html, /<title>StackDeck<\/title>/);
     assert.match(html, /Choose where to listen/);
     assert.match(html, /Scan an NFC card/);
     assert.match(html, /id="scan-nfc"/);
@@ -284,4 +291,47 @@ test("plays every track from the rotation shelf", async () => {
       ],
     });
   }, { spotify, rotation });
+});
+
+test("resolves and persists isolated request contexts", async () => {
+  const createContext = (albumId) => {
+    const album = { id: albumId, title: albumId, artist: "Artist", spotifyUri: `spotify:album:${albumId}` };
+    const player = createPlayerState({
+      targets: [{ id: "speaker", name: "Speaker", kind: "speaker" }],
+      albums: [album],
+      defaultTargetId: "speaker",
+    });
+    const rotation = createRotationShelf({ store: { load: () => null, save: () => {} } });
+    let rotationSaves = 0;
+    return {
+      player,
+      rotation,
+      spotify: disconnectedSpotify,
+      persistPlayer: async () => {},
+      persistRotation: async () => { rotationSaves += 1; },
+      rotationSaves: () => rotationSaves,
+    };
+  };
+  const contexts = new Map([
+    ["one", createContext("album-one")],
+    ["two", createContext("album-two")],
+  ]);
+
+  await withServer(async (baseUrl) => {
+    const one = await (await fetch(`${baseUrl}/api/state`, { headers: { "x-test-session": "one" } })).json();
+    const two = await (await fetch(`${baseUrl}/api/state`, { headers: { "x-test-session": "two" } })).json();
+    assert.equal(one.albums[0].id, "album-one");
+    assert.equal(two.albums[0].id, "album-two");
+
+    const updated = await fetch(`${baseUrl}/api/rotation`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-test-session": "one" },
+      body: JSON.stringify({ albumIds: ["album-one"], durationDays: 7, mode: "sequential" }),
+    });
+    assert.equal(updated.status, 200);
+    assert.equal(contexts.get("one").rotationSaves(), 1);
+    assert.equal(contexts.get("two").rotationSaves(), 0);
+  }, {
+    contextProvider: async (request) => contexts.get(request.headers["x-test-session"]),
+  });
 });

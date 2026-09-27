@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
   getCoverFlowWindow,
   moveCoverFlowIndex,
+  shouldRebuildCoverFlowWindow,
   settleCoverFlowDrag,
 } from "../public/coverflow.js";
 
@@ -75,4 +77,40 @@ test("projects a quick flick across several albums without leaving the collectio
     albumCount: 12,
     spacing: 105,
   }), 11);
+});
+
+test("coalesces rapid pointer movement into one render per animation frame", () => {
+  const frames = [];
+  const renders = [];
+  const schedule = createCoverFlowFrameScheduler({
+    requestFrame: (callback) => frames.push(callback),
+    render: (position) => renders.push(position),
+  });
+
+  schedule(1.1);
+  schedule(1.2);
+  schedule(1.3);
+  assert.equal(frames.length, 1);
+  assert.deepEqual(renders, []);
+
+  frames.shift()();
+  assert.deepEqual(renders, [1.3]);
+});
+
+test("reuses visible covers until dragging reaches the edge of their window", () => {
+  assert.equal(shouldRebuildCoverFlowWindow({
+    renderedIndexes: [0, 1, 2, 3, 4],
+    focusedIndex: 2,
+    albumCount: 113,
+  }), false);
+  assert.equal(shouldRebuildCoverFlowWindow({
+    renderedIndexes: [0, 1, 2, 3, 4],
+    focusedIndex: 3,
+    albumCount: 113,
+  }), true);
+  assert.equal(shouldRebuildCoverFlowWindow({
+    renderedIndexes: [108, 109, 110, 111, 112],
+    focusedIndex: 110,
+    albumCount: 113,
+  }), false);
 });

@@ -251,6 +251,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   touch-action: pan-y;
   user-select: none;
   cursor: grab;
+  contain: layout paint;
 }
 .coverflow-stage.empty { display: grid; place-items: center; color: #aaa99f; font-size: 12px; }
 .coverflow.dragging .coverflow-stage { cursor: grabbing; }
@@ -270,6 +271,8 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   box-shadow: 0 22px 45px rgba(0,0,0,.46);
   transform: translateX(calc(-50% + var(--flow-x))) translateZ(var(--flow-z)) rotateY(var(--flow-turn));
   transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
   z-index: var(--flow-order);
   cursor: pointer;
   transition: transform .38s cubic-bezier(.2,.75,.2,1), opacity .3s ease, filter .3s ease;
@@ -315,12 +318,13 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   grid-template-columns: minmax(180px, 1fr) auto auto auto;
   gap: 16px;
   align-items: end;
-  border: 1px solid var(--line);
+  border: 1px solid #aaa89f;
   border-radius: 14px;
-  background: var(--card);
+  background: linear-gradient(145deg, #e3e1da, #c9c7bf);
+  box-shadow: inset 0 1px rgba(255,255,255,.85), inset 0 -1px rgba(0,0,0,.08), 0 8px 22px rgba(50,41,25,.08);
 }
 
-.rotation-panel .step { margin: 0 0 4px; color: #627900; }
+.rotation-panel .step { margin: 0 0 4px; color: #526500; }
 .rotation-panel h3 { margin: 0; font-size: 18px; letter-spacing: -.035em; }
 .rotation-panel > div > p:last-child { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .rotation-panel label { color: var(--muted); font-family: "DM Mono", monospace; font-size: 8px; text-transform: uppercase; letter-spacing: .1em; }
@@ -332,30 +336,52 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 8px;
-  padding-top: 4px;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #080806;
+  border-radius: 10px;
+  background: #151512;
+  box-shadow: inset 0 0 0 2px #2c2c27, inset 0 10px 24px rgba(0,0,0,.5);
 }
 .rotation-albums[hidden] { display: none; }
 .rotation-album {
   min-width: 0;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper);
+  padding: 5px 8px 5px 5px;
+  border: 1px solid #484840;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #2c2c27, #22221e);
+  color: white;
+  box-shadow: inset 0 1px rgba(255,255,255,.07);
 }
+.rotation-album.playing { border-color: var(--acid); box-shadow: inset 0 0 0 1px var(--acid), 0 0 14px rgba(217,255,67,.12); }
+.rotation-slot-play {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rotation-slot-play:hover .rotation-album-copy strong { color: var(--acid); }
 .rotation-album-art { width: 48px; height: 48px; overflow: hidden; border-radius: 6px; background: #2d2d29; }
 .rotation-album-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .rotation-album-copy { min-width: 0; }
 .rotation-album-copy small, .rotation-album-copy strong, .rotation-album-copy span { display: block; }
-.rotation-album-copy small { margin-bottom: 2px; color: #627900; font: 8px "DM Mono", monospace; letter-spacing: .1em; }
+.rotation-album-copy small { margin-bottom: 2px; color: var(--acid); font: 8px "DM Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
 .rotation-album-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.rotation-album-copy span { overflow: hidden; margin-top: 2px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.rotation-remove { border: 0; border-bottom: 1px solid currentColor; padding: 4px 0; background: transparent; color: var(--muted); font: 8px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
-.rotation-remove:hover { color: var(--ink); }
+.rotation-album-copy span { overflow: hidden; margin-top: 2px; color: #aaa99f; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.rotation-remove { border: 1px solid #5e5e56; border-radius: 5px; padding: 7px 6px; background: #191916; color: #aaa99f; font: 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
+.rotation-remove:hover { border-color: var(--acid); color: var(--acid); }
 .rotation-remove:disabled { opacity: .4; }
 
 .target-card {

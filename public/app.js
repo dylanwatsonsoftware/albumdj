@@ -2,12 +2,14 @@ import { scanAlbumCards, writeAlbumCard } from "./nfc.js";
 import { refreshSpotifyOnLoad } from "./spotify-sync.js";
 import { createPlaybackMonitor } from "./live-playback.js";
 import {
+  createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
   getCoverFlowWindow,
   moveCoverFlowIndex,
+  shouldRebuildCoverFlowWindow,
   settleCoverFlowDrag,
 } from "./coverflow.js";
-import { removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
+import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -39,8 +41,17 @@ let coverflowSource = "all";
 let dragPosition = null;
 let dragGesture = null;
 let suppressCoverClick = false;
+let renderedCoverIndexes = [];
 
 const COVER_SPACING = 105;
+const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
+  requestFrame: requestAnimationFrame,
+  render: (position) => {
+    if (!dragGesture) return;
+    dragPosition = position;
+    renderCoverFlow({ preserveWindow: true });
+  },
+});
 
 function renderSpotifyStatus(status) {
   const statusText = document.querySelector("#spotify-status");
@@ -169,10 +180,11 @@ function flowAlbums() {
   return coverflowSource === "rotation" ? rotation.albums : state.albums;
 }
 
-function renderCoverFlow() {
+function renderCoverFlow({ preserveWindow = false } = {}) {
   const albums = flowAlbums();
   if (!albums.length) {
     coverflowStage.replaceChildren();
+    renderedCoverIndexes = [];
     coverflowStage.classList.add("empty");
     coverflowStage.textContent = coverflowSource === "rotation"
       ? "Add a few albums from Cover Flow or the grid."
@@ -193,44 +205,59 @@ function renderCoverFlow() {
   const visiblePosition = dragPosition ?? activeCoverIndex;
   const focusedIndex = moveCoverFlowIndex(Math.round(visiblePosition), 0, albums.length);
   const activeAlbum = albums[focusedIndex];
+  const rebuildWindow = !preserveWindow || shouldRebuildCoverFlowWindow({
+    renderedIndexes: renderedCoverIndexes,
+    focusedIndex,
+    albumCount: albums.length,
+  });
 
-  coverflowStage.replaceChildren(...getCoverFlowWindow(albums, focusedIndex, 4).map(({ album, index }) => {
+  if (rebuildWindow) {
+    const windowAlbums = getCoverFlowWindow(albums, focusedIndex, 4);
+    renderedCoverIndexes = windowAlbums.map(({ index }) => index);
+    coverflowStage.replaceChildren(...windowAlbums.map(({ album, index }) => {
+      const button = document.createElement("button");
+      button.className = "coverflow-cover";
+      button.type = "button";
+      button.dataset.albumId = album.id;
+      button.dataset.albumIndex = String(index);
+
+      if (album.imageUrl) {
+        const image = document.createElement("img");
+        image.src = album.imageUrl;
+        image.alt = "";
+        image.draggable = false;
+        image.loading = Math.abs(index - focusedIndex) <= 2 ? "eager" : "lazy";
+        button.append(image);
+      } else {
+        button.textContent = album.title;
+        button.style.background = `linear-gradient(135deg, ${(album.palette ?? ["#8e887d", "#3c3934"])[0]}, ${(album.palette ?? ["#8e887d", "#3c3934"])[1]})`;
+      }
+
+      button.addEventListener("click", () => {
+        if (suppressCoverClick) return;
+        if (index === activeCoverIndex) scanAlbum(album.id);
+        else {
+          activeCoverIndex = index;
+          renderCoverFlow();
+        }
+      });
+      return button;
+    }));
+  }
+
+  for (const button of coverflowStage.querySelectorAll(".coverflow-cover")) {
+    const index = Number(button.dataset.albumIndex);
+    const album = albums[index];
     const offset = index - visiblePosition;
-    const button = document.createElement("button");
-    button.className = "coverflow-cover";
     button.classList.toggle("active", index === focusedIndex);
-    button.type = "button";
-    button.dataset.albumId = album.id;
-    button.style.setProperty("--flow-x", `${offset * 105}px`);
+    button.style.setProperty("--flow-x", `${offset * COVER_SPACING}px`);
     button.style.setProperty("--flow-z", `${Math.abs(offset) * -85}px`);
     button.style.setProperty("--flow-turn", `${offset * -48}deg`);
     button.style.setProperty("--flow-order", String(10 - Math.abs(offset)));
-    button.setAttribute("aria-label", offset === 0
+    button.setAttribute("aria-label", index === focusedIndex
       ? `${album.title} by ${album.artist}, selected`
       : `Select ${album.title} by ${album.artist}`);
-
-    if (album.imageUrl) {
-      const image = document.createElement("img");
-      image.src = album.imageUrl;
-      image.alt = "";
-      image.draggable = false;
-      image.loading = Math.abs(offset) <= 1.5 ? "eager" : "lazy";
-      button.append(image);
-    } else {
-      button.textContent = album.title;
-      button.style.background = `linear-gradient(135deg, ${(album.palette ?? ["#8e887d", "#3c3934"])[0]}, ${(album.palette ?? ["#8e887d", "#3c3934"])[1]})`;
-    }
-
-    button.addEventListener("click", () => {
-      if (suppressCoverClick) return;
-      if (index === focusedIndex) scanAlbum(album.id);
-      else {
-        activeCoverIndex = index;
-        renderCoverFlow();
-      }
-    });
-    return button;
-  }));
+  }
 
   document.querySelector("#coverflow-position").textContent = `${focusedIndex + 1} / ${albums.length}`;
   document.querySelector("#coverflow-title").textContent = activeAlbum.title;
@@ -273,7 +300,7 @@ function updateCoverFlowDrag(event) {
     albumCount: flowAlbums().length,
     spacing: COVER_SPACING,
   });
-  renderCoverFlow();
+  scheduleCoverFlowDragRender(dragPosition);
 }
 
 function finishCoverFlowDrag(event) {
@@ -319,14 +346,23 @@ function renderRotation() {
   rotationMode.value = rotation.mode;
   rotationPlayButton.disabled = rotation.albumIds.length === 0;
   document.querySelector("#rotation-status").textContent = rotation.albumIds.length
-    ? `${rotation.albumIds.length} album${rotation.albumIds.length === 1 ? "" : "s"} · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
-    : "No albums selected.";
+    ? `${rotation.albumIds.length} disc${rotation.albumIds.length === 1 ? "" : "s"} loaded · tap one to play · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
+    : "No discs loaded. Add an album from Cover Flow.";
 
   rotationAlbumsElement.hidden = rotation.albums.length === 0;
-  rotationAlbumsElement.replaceChildren(...rotation.albums.map((album, index) => {
+  const albumById = new Map(rotation.albums.map((album) => [album.id, album]));
+  rotationAlbumsElement.replaceChildren(...getRotationSlots(rotation.albums).map((slot) => {
+    const album = albumById.get(slot.albumId);
     const item = document.createElement("article");
     item.className = "rotation-album";
+    item.classList.toggle("playing", livePlayback?.album?.id === album.id && livePlayback.isPlaying);
     item.setAttribute("role", "listitem");
+
+    const playButton = document.createElement("button");
+    playButton.className = "rotation-slot-play";
+    playButton.type = "button";
+    playButton.setAttribute("aria-label", `Play ${album.title} by ${album.artist}`);
+    playButton.addEventListener("click", () => scanAlbum(album.id));
 
     const artwork = document.createElement("span");
     artwork.className = "rotation-album-art";
@@ -341,7 +377,7 @@ function renderRotation() {
     const copy = document.createElement("span");
     copy.className = "rotation-album-copy";
     const position = document.createElement("small");
-    position.textContent = String(index + 1).padStart(2, "0");
+    position.textContent = slot.discLabel;
     const title = document.createElement("strong");
     title.textContent = album.title;
     const artist = document.createElement("span");
@@ -351,14 +387,15 @@ function renderRotation() {
     const removeButton = document.createElement("button");
     removeButton.className = "rotation-remove";
     removeButton.type = "button";
-    removeButton.textContent = "Remove";
+    removeButton.textContent = "Eject";
     removeButton.setAttribute("aria-label", `Remove ${album.title} from rotation`);
     removeButton.addEventListener("click", async () => {
       removeButton.disabled = true;
       await saveRotation(removeRotationAlbum(rotation.albumIds, album.id));
     });
 
-    item.append(artwork, copy, removeButton);
+    playButton.append(artwork, copy);
+    item.append(playButton, removeButton);
     return item;
   }));
 }
@@ -393,7 +430,7 @@ async function playRotation() {
     setTimeout(() => playbackMonitor?.refresh(), 800);
   } finally {
     rotationPlayButton.disabled = rotation.albumIds.length === 0;
-    rotationPlayButton.textContent = "Play rotation";
+    rotationPlayButton.textContent = "Play stack";
   }
 }
 
@@ -478,6 +515,7 @@ function showPlayback(playback) {
 
 function showLivePlayback(playback) {
   livePlayback = playback;
+  renderRotation();
   if (!playback) {
     nowPlayingElement.classList.remove("visible");
     nowPlayingElement.hidden = true;

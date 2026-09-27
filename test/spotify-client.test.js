@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 
 import { createSpotifyClient } from "../src/spotify-client.js";
 
-test("builds a PKCE authorization URL with the required permissions", () => {
+test("builds a PKCE authorization URL with the required permissions", async () => {
   const spotify = createSpotifyClient({
     clientId: "client-123",
     redirectUri: "https://example.test/auth/spotify/callback",
     randomBytes: () => Buffer.alloc(32, 7),
   });
 
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
 
   assert.equal(authorizationUrl.origin, "https://accounts.spotify.com");
   assert.equal(authorizationUrl.pathname, "/authorize");
@@ -30,7 +30,7 @@ test("rejects an OAuth callback whose state does not match", async () => {
     redirectUri: "https://example.test/auth/spotify/callback",
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  spotify.beginAuthorization();
+  await spotify.beginAuthorization();
 
   await assert.rejects(
     spotify.completeAuthorization({ code: "auth-code", state: "wrong-state" }),
@@ -57,7 +57,7 @@ test("exchanges the code and reports the connected Spotify profile", async () =>
     fetchImpl,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
 
   await spotify.completeAuthorization({
     code: "auth-code",
@@ -117,7 +117,7 @@ test("loads every saved-album page and maps albums into physical-card entries", 
     fetchImpl,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   const albums = await spotify.getSavedAlbums();
@@ -157,7 +157,7 @@ test("returns Spotify devices that accept playback commands", async () => {
     fetchImpl,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   assert.deepEqual(await spotify.getAvailableDevices(), [{
@@ -183,7 +183,7 @@ test("starts an album on the selected Spotify device", async () => {
     fetchImpl,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   await spotify.playAlbum({ deviceId: "desktop-1", spotifyUri: "spotify:album:album-1" });
@@ -223,7 +223,7 @@ test("returns the track and device Spotify is actually playing", async () => {
     fetchImpl,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   assert.deepEqual(await spotify.getCurrentPlayback(), {
@@ -253,7 +253,7 @@ test("returns null when Spotify has no current playback", async () => {
     fetchImpl,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   assert.equal(await spotify.getCurrentPlayback(), null);
@@ -268,7 +268,7 @@ test("pauses the active Spotify playback", async () => {
     return new Response(null, { status: 204 });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   await spotify.pausePlayback();
@@ -286,7 +286,7 @@ test("resumes the active Spotify playback", async () => {
     return new Response(null, { status: 204 });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   await spotify.resumePlayback();
@@ -304,7 +304,7 @@ test("skips to the next Spotify track", async () => {
     return new Response(null, { status: 204 });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   await spotify.skipNext();
@@ -321,7 +321,7 @@ test("loads every track from an album", async () => {
     return Response.json({ items: [{ uri: "spotify:track:one", is_playable: true }, { uri: "spotify:track:blocked", is_playable: false }], next: "https://api.spotify.com/v1/albums/album-1/tracks?offset=50" });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   assert.deepEqual(await spotify.getAlbumTracks("album-1"), ["spotify:track:one", "spotify:track:two"]);
@@ -336,7 +336,7 @@ test("starts an explicit rotation of tracks on the selected device", async () =>
     return new Response(null, { status: 204 });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   await spotify.playTracks({ deviceId: "speaker-1", trackUris: ["spotify:track:one", "spotify:track:two"] });
@@ -365,7 +365,7 @@ test("restores a connected Spotify session after a server restart", async () => 
     sessionStore,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(firstClient.beginAuthorization());
+  const authorizationUrl = new URL(await firstClient.beginAuthorization());
   await firstClient.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
 
   const restartedClient = createSpotifyClient({
@@ -404,7 +404,7 @@ test("refreshes an expired access token before calling Spotify", async () => {
     now: () => currentTime,
     randomBytes: () => Buffer.alloc(32, 7),
   });
-  const authorizationUrl = new URL(spotify.beginAuthorization());
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
   await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
   currentTime = 2_000;
 
@@ -413,4 +413,36 @@ test("refreshes an expired access token before calling Spotify", async () => {
   const refreshRequest = requests.find(({ options }) => new URLSearchParams(options.body).get("grant_type") === "refresh_token");
   assert.ok(refreshRequest);
   assert.equal(requests.at(-1).options.headers.authorization, "Bearer access-new");
+});
+
+test("persists PKCE state so a serverless callback can use a new client instance", async () => {
+  let savedSession = null;
+  const sessionStore = {
+    load: () => savedSession,
+    save: async (session) => { savedSession = structuredClone(session); },
+  };
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/api/token")) {
+      return Response.json({ access_token: "access-123", refresh_token: "refresh-123", expires_in: 3600 });
+    }
+    return Response.json({ id: "listener", display_name: "Dylan" });
+  };
+  const options = {
+    clientId: "client-123",
+    redirectUri: "https://example.test/auth/spotify/callback",
+    fetchImpl,
+    sessionStore,
+    randomBytes: () => Buffer.alloc(48, 7),
+  };
+  const firstInvocation = createSpotifyClient(options);
+  const authorizationUrl = new URL(await firstInvocation.beginAuthorization());
+  const secondInvocation = createSpotifyClient(options);
+
+  await secondInvocation.completeAuthorization({
+    code: "auth-code",
+    state: authorizationUrl.searchParams.get("state"),
+  });
+
+  assert.equal(secondInvocation.status().connected, true);
+  assert.equal(savedSession.pendingAuthorization, null);
 });

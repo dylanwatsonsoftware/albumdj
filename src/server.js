@@ -35,18 +35,26 @@ async function readJson(request) {
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
 }
 
-export function createPrototypeServer(options = {}) {
-  const player = createPlayerState({ targets, albums, defaultTargetId: "whole-house" });
-  const spotify = options.spotify ?? createSpotifyClient({
-    clientId: process.env.SPOTIFY_CLIENT_ID,
-    redirectUri: process.env.SPOTIFY_REDIRECT_URI || "http://127.0.0.1:8787/auth/spotify/callback",
-    sessionStore: createJsonSessionStore(join(here, "..", ".data", "spotify-session.json")),
-  });
-  const rotation = options.rotation ?? createRotationShelf({
-    store: createJsonSessionStore(join(here, "..", ".data", "rotation-shelf.json")),
-  });
+export function createPrototypeHandler(options = {}) {
+  let sharedContext = null;
+  if (!options.contextProvider) {
+    sharedContext = {
+      player: createPlayerState({ targets, albums, defaultTargetId: "whole-house" }),
+      spotify: options.spotify ?? createSpotifyClient({
+        clientId: process.env.SPOTIFY_CLIENT_ID,
+        redirectUri: process.env.SPOTIFY_REDIRECT_URI || "http://127.0.0.1:8787/auth/spotify/callback",
+        sessionStore: createJsonSessionStore(join(here, "..", ".data", "spotify-session.json")),
+      }),
+      rotation: options.rotation ?? createRotationShelf({
+        store: createJsonSessionStore(join(here, "..", ".data", "rotation-shelf.json")),
+      }),
+      persistPlayer: async () => {},
+      persistRotation: async () => {},
+    };
+  }
+  const contextProvider = options.contextProvider ?? (async () => sharedContext);
 
-  function rotationState() {
+  function rotationState(player, rotation) {
     const snapshot = rotation.snapshot();
     const albumById = new Map(player.snapshot().albums.map((album) => [album.id, album]));
     return {
@@ -55,10 +63,27 @@ export function createPrototypeServer(options = {}) {
     };
   }
 
-  return createServer(async (request, response) => {
+  return async function prototypeHandler(request, response) {
     const url = new URL(request.url, "http://prototype.local");
 
     try {
+      if (request.method === "GET" && assets.has(url.pathname)) {
+        const [filename, contentType] = assets.get(url.pathname);
+        const body = await readFile(join(publicDirectory, filename));
+        response.writeHead(200, { "content-type": contentType });
+        return response.end(body);
+      }
+
+      const context = await contextProvider(request, response);
+      if (!context) throw new Error("No user session is available");
+      const {
+        player,
+        spotify,
+        rotation,
+        persistPlayer = async () => {},
+        persistRotation = async () => {},
+      } = context;
+
       if (request.method === "GET" && url.pathname === "/api/state") {
         return sendJson(response, 200, player.snapshot());
       }
@@ -95,16 +120,18 @@ export function createPrototypeServer(options = {}) {
 
       if (request.method === "POST" && url.pathname === "/api/spotify/import") {
         player.replaceAlbums(await spotify.getSavedAlbums());
+        await persistPlayer();
         return sendJson(response, 200, player.snapshot());
       }
 
       if (request.method === "POST" && url.pathname === "/api/spotify/devices") {
         player.replaceTargets(await spotify.getAvailableDevices());
+        await persistPlayer();
         return sendJson(response, 200, player.snapshot());
       }
 
       if (request.method === "GET" && url.pathname === "/api/rotation") {
-        return sendJson(response, 200, rotationState());
+        return sendJson(response, 200, rotationState(player, rotation));
       }
 
       if (request.method === "PUT" && url.pathname === "/api/rotation") {
@@ -114,7 +141,8 @@ export function createPrototypeServer(options = {}) {
           throw new Error("Rotation contains an unknown album");
         }
         rotation.update(nextRotation);
-        return sendJson(response, 200, rotationState());
+        await persistRotation();
+        return sendJson(response, 200, rotationState(player, rotation));
       }
 
       if (request.method === "POST" && url.pathname === "/api/rotation/play") {
@@ -141,12 +169,12 @@ export function createPrototypeServer(options = {}) {
         });
       }
 
-      if (request.method === "GET" && url.pathname === "/auth/spotify") {
-        response.writeHead(302, { location: spotify.beginAuthorization() });
+      if (request.method === "GET" && ["/auth/spotify", "/api/auth/spotify"].includes(url.pathname)) {
+        response.writeHead(302, { location: await spotify.beginAuthorization() });
         return response.end();
       }
 
-      if (request.method === "GET" && url.pathname === "/auth/spotify/callback") {
+      if (request.method === "GET" && ["/auth/spotify/callback", "/api/auth/spotify/callback"].includes(url.pathname)) {
         if (url.searchParams.has("error")) {
           throw new Error(`Spotify authorization denied: ${url.searchParams.get("error")}`);
         }
@@ -156,6 +184,7 @@ export function createPrototypeServer(options = {}) {
         });
         player.replaceAlbums(await spotify.getSavedAlbums());
         player.replaceTargets(await spotify.getAvailableDevices());
+        await persistPlayer();
         response.writeHead(302, { location: "/?spotify=connected" });
         return response.end();
       }
@@ -163,6 +192,7 @@ export function createPrototypeServer(options = {}) {
       if (request.method === "POST" && url.pathname === "/api/target") {
         const { targetId } = await readJson(request);
         player.selectTarget(targetId);
+        await persistPlayer();
         return sendJson(response, 200, player.snapshot());
       }
 
@@ -176,21 +206,19 @@ export function createPrototypeServer(options = {}) {
           });
           playback.mode = "spotify";
         }
+        await persistPlayer();
         return sendJson(response, 200, playback);
-      }
-
-      if (request.method === "GET" && assets.has(url.pathname)) {
-        const [filename, contentType] = assets.get(url.pathname);
-        const body = await readFile(join(publicDirectory, filename));
-        response.writeHead(200, { "content-type": contentType });
-        return response.end(body);
       }
 
       return sendJson(response, 404, { error: "Not found" });
     } catch (error) {
       return sendJson(response, 400, { error: error.message });
     }
-  });
+  };
+}
+
+export function createPrototypeServer(options = {}) {
+  return createServer(createPrototypeHandler(options));
 }
 
 function localAddresses(port) {
@@ -208,7 +236,7 @@ function localAddresses(port) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 8787);
   createPrototypeServer().listen(port, "0.0.0.0", () => {
-    console.log(`Physical Favourites prototype: http://localhost:${port}`);
+    console.log(`StackDeck prototype: http://localhost:${port}`);
     for (const address of localAddresses(port)) console.log(`Phone: ${address}`);
   });
 }

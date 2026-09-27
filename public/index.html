@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f2eee4">
-    <title>Physical Favourites</title>
+    <title>StackDeck</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -12,8 +12,8 @@
       <header class="masthead">
         <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
         <div>
-          <p class="eyebrow">Spotify, made tangible</p>
-          <h1>Physical<br>Favourites</h1>
+          <p class="eyebrow">Spotify albums, loaded</p>
+          <h1>Stack<br>Deck</h1>
         </div>
         <div class="prototype-badge">Prototype 01</div>
       </header>
@@ -26,7 +26,7 @@
             <h2 id="spotify-heading">Connect Spotify</h2>
             <p id="spotify-status">Checking connection…</p>
           </div>
-          <a id="spotify-connect-button" class="connect-button" href="/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
+          <a id="spotify-connect-button" class="connect-button" href="/api/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
           <span id="spotify-connected-badge" class="connected-badge" hidden>Connected</span>
         </div>
       </section>
@@ -87,8 +87,8 @@
         </div>
         <div class="rotation-panel" aria-labelledby="rotation-heading">
           <div>
-            <p class="step">Rotation shelf</p>
-            <h3 id="rotation-heading">A short stack for now</h3>
+            <p class="step">StackDeck · multi-disc changer</p>
+            <h3 id="rotation-heading">Your album stack</h3>
             <p id="rotation-status">No albums selected.</p>
           </div>
           <label>
@@ -105,8 +105,8 @@
               <option value="shuffle">Shuffle every song</option>
             </select>
           </label>
-          <button id="rotation-play" class="rotation-play" type="button" disabled>Play rotation</button>
-          <div id="rotation-albums" class="rotation-albums" role="list" aria-label="Albums in rotation" hidden></div>
+          <button id="rotation-play" class="rotation-play" type="button" disabled>Play stack</button>
+          <div id="rotation-albums" class="rotation-albums" role="list" aria-label="Albums loaded in StackDeck" hidden></div>
         </div>
         <div id="albums" class="album-grid" hidden></div>
       </section>
