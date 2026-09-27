@@ -323,11 +323,34 @@ export function createPrototypeHandler(options = {}) {
 
       if (request.method === "PUT" && url.pathname === "/api/rotation") {
         const nextRotation = await readJson(request);
+        if (Array.isArray(nextRotation.albums) && nextRotation.albums.length) {
+          const albumById = new Map(player.snapshot().albums.map((album) => [album.id, album]));
+          for (const album of nextRotation.albums) {
+            if (!album?.id || !album?.title || !album?.artist) throw new Error("A discovered album is incomplete");
+            albumById.set(String(album.id), {
+              id: String(album.id),
+              title: String(album.title),
+              artist: String(album.artist),
+              artistId: album.artistId ? String(album.artistId) : null,
+              spotifyUri: album.spotifyUri || `spotify:album:${album.id}`,
+              imageUrl: album.imageUrl || null,
+              spotifyUrl: album.spotifyUrl || null,
+              releaseDate: album.releaseDate || null,
+              albumType: album.albumType || "album",
+            });
+          }
+          player.replaceAlbums([...albumById.values()]);
+          await persistPlayer();
+        }
         const knownAlbums = new Set(player.snapshot().albums.map(({ id }) => id));
         if (nextRotation.albumIds.some((id) => !knownAlbums.has(id))) {
           throw new Error("Rotation contains an unknown album");
         }
-        rotation.update(nextRotation);
+        rotation.update({
+          albumIds: nextRotation.albumIds,
+          durationDays: nextRotation.durationDays,
+          mode: nextRotation.mode,
+        });
         await persistRotation();
         return sendJson(response, 200, rotationState(player, rotation));
       }

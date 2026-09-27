@@ -74,6 +74,7 @@ const libraryBrowser = document.querySelector("#library-browser");
 const artistDiscography = document.querySelector("#artist-discography");
 const artistDiscographyTitle = document.querySelector("#artist-discography-title");
 const artistDiscographyStatus = document.querySelector("#artist-discography-status");
+const artistDiscographyActions = document.querySelector("#artist-discography-actions");
 const artistDiscographyAlbums = document.querySelector("#artist-discography-albums");
 const artistDiscographyBack = document.querySelector("#artist-discography-back");
 const appNavigation = document.querySelector("#app-navigation");
@@ -223,6 +224,26 @@ function artistAlbumsButton(album, className = "artist-albums-button") {
   return button;
 }
 
+function rotationAlbumButton(album) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "result-play result-rotation";
+  const updateLabel = () => {
+    button.textContent = rotation.albumIds.includes(album.id) ? "Remove from stack" : "Add to stack";
+  };
+  updateLabel();
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await toggleAlbumInRotation(album);
+      updateLabel();
+    } finally {
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
 function viewAlbumArtist(album, button) {
   const artist = getAlbumArtist(album);
   if (!artist) return;
@@ -354,6 +375,7 @@ function albumResultCard(album) {
     play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
     actions.append(play);
   }
+  if (getResultActions("album").includes("rotation")) actions.append(rotationAlbumButton(album));
   if (getResultActions("album").includes("artist")) {
     const viewArtistButton = artistAlbumsButton(album, "result-play result-artist");
     if (viewArtistButton) actions.append(viewArtistButton);
@@ -815,6 +837,7 @@ async function showArtistReleases(artist, button) {
   libraryBrowser.hidden = true;
   artistDiscography.hidden = false;
   artistDiscographyTitle.textContent = artist.name;
+  artistDiscographyActions.replaceChildren(favouriteButton(artist));
   const cachedAlbums = artistAlbums[artist.id]
     ?? state.albums.filter((album) => album.artistId === artist.id);
   artistDiscographyStatus.textContent = cachedAlbums.length
@@ -1084,24 +1107,38 @@ function renderRotation() {
   }));
 }
 
-async function saveRotation(albumIds = rotation.albumIds) {
+async function saveRotation(albumIds = rotation.albumIds, albums = []) {
   rotation = await request("/api/rotation", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       albumIds,
+      albums,
       durationDays: Number(rotationDuration.value),
       mode: rotationMode.value,
     }),
   });
+  if (albums.length) {
+    const albumById = new Map(state.albums.map((album) => [album.id, album]));
+    for (const album of albums) albumById.set(album.id, album);
+    state = { ...state, albums: [...albumById.values()] };
+  }
   persistUiCache();
   renderRotation();
   renderAlbums();
   renderCoverFlow();
 }
 
-async function toggleAlbumInRotation(albumId) {
-  await saveRotation(toggleRotationAlbum(rotation.albumIds, albumId));
+async function toggleAlbumInRotation(albumOrId) {
+  const album = typeof albumOrId === "string"
+    ? state.albums.find(({ id }) => id === albumOrId)
+    : albumOrId;
+  const albumId = typeof albumOrId === "string" ? albumOrId : albumOrId.id;
+  const isAdding = !rotation.albumIds.includes(albumId);
+  await saveRotation(
+    toggleRotationAlbum(rotation.albumIds, albumId),
+    isAdding && album ? [album] : [],
+  );
 }
 
 async function playRotation() {

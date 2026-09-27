@@ -80,7 +80,7 @@ export function moveSuggestionIndex(currentIndex, delta, suggestionCount) {
 }
 
 export function getResultActions(resultType) {
-  return resultType === "artist" ? ["releases", "favourite"] : ["play", "artist", "favourite"];
+  return resultType === "artist" ? ["releases", "favourite"] : ["play", "rotation", "artist", "favourite"];
 }
 
 export function artistReleaseErrorMessage(artistName, error) {

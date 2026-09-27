@@ -61,7 +61,7 @@ test("moves through autocomplete suggestions without leaving the list", () => {
 });
 
 test("album results can play or be favourited while artist results expose releases", () => {
-  assert.deepEqual(getResultActions("album"), ["play", "artist", "favourite"]);
+  assert.deepEqual(getResultActions("album"), ["play", "rotation", "artist", "favourite"]);
   assert.deepEqual(getResultActions("artist"), ["releases", "favourite"]);
 });
 

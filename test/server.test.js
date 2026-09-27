@@ -72,6 +72,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /data-coverflow-source="rotation"/);
     assert.match(html, /id="coverflow-empty-action"/);
     assert.match(html, /id="coverflow-artist-albums"/);
+    assert.match(html, /id="artist-discography-actions"/);
     assert.match(html, /data-focus-target="album-search"/);
     assert.match(html, /data-focus-target="favourite-artists"/);
 
@@ -576,6 +577,44 @@ test("configures and returns the temporary rotation shelf", async () => {
     const fetched = await (await fetch(`${baseUrl}/api/rotation`)).json();
     assert.deepEqual(fetched, body);
   }, { rotation });
+});
+
+test("adds a discovered Spotify album to the catalogue and rotation together", async () => {
+  const player = createPlayerState({
+    targets: [{ id: "speaker", name: "Speaker" }],
+    albums: [],
+    defaultTargetId: "speaker",
+  });
+  const rotation = createRotationShelf({ store: { load: () => null, save: () => {} } });
+  let playerSaves = 0;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/rotation`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        albumIds: ["blue"],
+        albums: [{
+          id: "blue", title: "Blue", artist: "Joni Mitchell", artistId: "joni",
+          spotifyUri: "spotify:album:blue", imageUrl: "https://image.test/blue.jpg",
+        }],
+        durationDays: 7,
+        mode: "sequential",
+      }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).albums.map(({ id }) => id), ["blue"]);
+    assert.equal(player.snapshot().albums[0].artistId, "joni");
+    assert.equal(playerSaves, 1);
+  }, {
+    contextProvider: async () => ({
+      player,
+      rotation,
+      spotify: disconnectedSpotify,
+      persistPlayer: async () => { playerSaves += 1; },
+    }),
+  });
 });
 
 test("drops stale album ids from a saved rotation before the client edits it", async () => {
