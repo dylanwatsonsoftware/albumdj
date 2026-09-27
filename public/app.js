@@ -25,7 +25,7 @@ import {
   toggleFavouriteArtist,
   toggleFavouriteAlbum,
 } from "./discovery.js";
-import { getNavigationState, sectionFromHash } from "./navigation.js";
+import { getNavigationIntent, getNavigationState, sectionFromHash } from "./navigation.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -38,10 +38,11 @@ const playbackNextButton = document.querySelector("#playback-next");
 const coverflowElement = document.querySelector("#coverflow");
 const coverflowStage = document.querySelector("#coverflow-stage");
 const coverflowPlayButton = document.querySelector("#coverflow-play");
+const coverflowEmptyAction = document.querySelector("#coverflow-empty-action");
 const coverflowPairButton = document.querySelector("#coverflow-pair");
-const coverflowViewButton = document.querySelector("#album-view-coverflow");
 const gridViewButton = document.querySelector("#album-view-grid");
 const rotationViewButton = document.querySelector("#album-view-rotation");
+const rotationPanelElement = document.querySelector(".rotation-panel");
 const rotationToggleButton = document.querySelector("#rotation-toggle");
 const rotationDuration = document.querySelector("#rotation-duration");
 const rotationMode = document.querySelector("#rotation-mode");
@@ -65,7 +66,6 @@ let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", 
 let livePlayback = null;
 let playbackMonitor = null;
 let activeCoverIndex = 0;
-let coverflowSource = "all";
 let dragPosition = null;
 let dragGesture = null;
 let suppressCoverClick = false;
@@ -231,7 +231,7 @@ function renderAlbums() {
 }
 
 function flowAlbums() {
-  return coverflowSource === "rotation" ? rotation.albums : visibleAlbums();
+  return rotation.albums;
 }
 
 function favouriteButton(artist) {
@@ -632,7 +632,6 @@ function selectAutocompleteSuggestion(suggestion) {
   searchInput.value = suggestion.primary;
   activeCoverIndex = 0;
   renderAlbums();
-  if (coverflowSource === "all") renderCoverFlow();
   if (suggestion.type === "album") {
     renderDiscoveryResults({ heading: "Album from Spotify", albums: [suggestion.item] });
   } else {
@@ -746,23 +745,25 @@ async function playDiscoveredAlbum(albumId, button) {
 function renderCoverFlow({ preserveWindow = false } = {}) {
   const albums = flowAlbums();
   if (!albums.length) {
+    coverflowElement.classList.add("empty-stack");
+    coverflowEmptyAction.hidden = false;
     coverflowStage.replaceChildren();
     renderedCoverIndexes = [];
     coverflowStage.classList.add("empty");
-    coverflowStage.textContent = coverflowSource === "rotation"
-      ? "Add a few albums from Cover Flow or the grid."
-      : "No albums available.";
+    coverflowStage.textContent = "Find a few albums and add them to your stack.";
     document.querySelector("#coverflow-position").textContent = "0 / 0";
-    document.querySelector("#coverflow-title").textContent = coverflowSource === "rotation" ? "Your rotation is empty" : "No albums";
+    document.querySelector("#coverflow-title").textContent = "Your stack is empty";
     document.querySelector("#coverflow-artist").textContent = "";
     document.querySelector("#coverflow-previous").disabled = true;
     document.querySelector("#coverflow-next").disabled = true;
     coverflowPlayButton.disabled = true;
     coverflowPairButton.disabled = true;
     rotationToggleButton.disabled = true;
-    rotationToggleButton.textContent = "Add to rotation";
+    rotationToggleButton.textContent = "Remove from stack";
     return;
   }
+  coverflowElement.classList.remove("empty-stack");
+  coverflowEmptyAction.hidden = true;
   coverflowStage.classList.remove("empty");
   activeCoverIndex = moveCoverFlowIndex(activeCoverIndex, 0, albums.length);
   const visiblePosition = dragPosition ?? activeCoverIndex;
@@ -830,7 +831,7 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
   coverflowPlayButton.disabled = false;
   coverflowPairButton.disabled = !("NDEFReader" in globalThis);
   rotationToggleButton.disabled = false;
-  rotationToggleButton.textContent = rotation.albumIds.includes(activeAlbum.id) ? "Remove from rotation" : "Add to rotation";
+  rotationToggleButton.textContent = "Remove from stack";
 }
 
 function beginCoverFlowDrag(event) {
@@ -893,15 +894,11 @@ function moveCoverFlow(delta) {
 }
 
 function setAlbumView(view) {
-  const showCoverFlow = view !== "grid";
-  coverflowSource = view === "rotation" ? "rotation" : "all";
-  activeCoverIndex = 0;
-  coverflowElement.hidden = !showCoverFlow;
-  albumsElement.hidden = showCoverFlow;
-  coverflowViewButton.setAttribute("aria-pressed", String(view === "coverflow"));
+  const showRotation = view !== "grid";
+  albumsElement.hidden = showRotation;
+  rotationPanelElement.hidden = !showRotation;
   rotationViewButton.setAttribute("aria-pressed", String(view === "rotation"));
   gridViewButton.setAttribute("aria-pressed", String(view === "grid"));
-  if (showCoverFlow) renderCoverFlow();
 }
 
 function renderRotation() {
@@ -910,7 +907,7 @@ function renderRotation() {
   rotationPlayButton.disabled = rotation.albumIds.length === 0;
   document.querySelector("#rotation-status").textContent = rotation.albumIds.length
     ? `${rotation.albumIds.length} disc${rotation.albumIds.length === 1 ? "" : "s"} loaded · tap one to play · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
-    : "No discs loaded. Add an album from Cover Flow.";
+    : "No discs loaded. Find an album and add it to your stack.";
 
   rotationAlbumsElement.hidden = rotation.albums.length === 0;
   const albumById = new Map(rotation.albums.map((album) => [album.id, album]));
@@ -1138,14 +1135,22 @@ async function startApp() {
     if (button) showAppSection(button.dataset.sectionTarget);
   });
   document.querySelectorAll("[data-navigate]").forEach((button) => {
-    button.addEventListener("click", () => showAppSection(button.dataset.navigate));
+    button.addEventListener("click", () => {
+      const intent = getNavigationIntent(button.dataset.navigate, button.dataset.focusTarget);
+      showAppSection(intent.section);
+      if (!intent.focusTarget) return;
+      requestAnimationFrame(() => {
+        const target = document.querySelector(`#${intent.focusTarget}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+        target?.focus?.({ preventScroll: true });
+      });
+    });
   });
   window.addEventListener("hashchange", () => showAppSection(sectionFromHash(location.hash), { updateHash: false }));
   showAppSection(sectionFromHash(location.hash), { updateHash: false });
   searchInput.addEventListener("input", () => {
     activeCoverIndex = 0;
     renderAlbums();
-    if (coverflowSource === "all") renderCoverFlow();
     scheduleAutocomplete();
   });
   searchInput.addEventListener("keydown", handleAutocompleteKeydown);
@@ -1162,7 +1167,6 @@ async function startApp() {
   coverflowPlayButton.addEventListener("click", () => scanAlbum(flowAlbums()[activeCoverIndex].id));
   coverflowPairButton.addEventListener("click", () => pairAlbum(flowAlbums()[activeCoverIndex]));
   rotationToggleButton.addEventListener("click", () => toggleAlbumInRotation(flowAlbums()[activeCoverIndex].id));
-  coverflowViewButton.addEventListener("click", () => setAlbumView("coverflow"));
   rotationViewButton.addEventListener("click", () => setAlbumView("rotation"));
   gridViewButton.addEventListener("click", () => setAlbumView("grid"));
   rotationDuration.addEventListener("change", () => saveRotation());

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getNavigationState, sectionFromHash } from "../public/navigation.js";
+import { getNavigationIntent, getNavigationState, sectionFromHash } from "../public/navigation.js";
 
 test("opens only one recognised Album DJ section", () => {
   assert.deepEqual(getNavigationState("library"), {
@@ -23,4 +23,19 @@ test("falls back to Home for missing or unknown sections", () => {
 test("reads an app section from a URL hash", () => {
   assert.equal(sectionFromHash("#stack"), "stack");
   assert.equal(sectionFromHash("#not-a-section"), "home");
+});
+
+test("routes discovery shortcuts to a valid target inside Library", () => {
+  assert.deepEqual(getNavigationIntent("library", "album-search"), {
+    section: "library",
+    focusTarget: "album-search",
+  });
+  assert.deepEqual(getNavigationIntent("library", "favourite-artists"), {
+    section: "library",
+    focusTarget: "favourite-artists",
+  });
+  assert.deepEqual(getNavigationIntent("home", "album-search"), {
+    section: "home",
+    focusTarget: null,
+  });
 });

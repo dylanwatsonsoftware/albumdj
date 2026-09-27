@@ -64,6 +64,11 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /data-app-section="library"/);
     assert.match(html, /data-app-section="stack"/);
     assert.match(html, /data-app-section="devices"/);
+    assert.match(html, /class="home-stack-hero"/);
+    assert.match(html, /data-coverflow-source="rotation"/);
+    assert.match(html, /id="coverflow-empty-action"/);
+    assert.match(html, /data-focus-target="album-search"/);
+    assert.match(html, /data-focus-target="favourite-artists"/);
 
     const startupModule = await fetch(`${baseUrl}/startup.js`);
     assert.equal(startupModule.status, 200);
@@ -389,6 +394,27 @@ test("configures and returns the temporary rotation shelf", async () => {
 
     const fetched = await (await fetch(`${baseUrl}/api/rotation`)).json();
     assert.deepEqual(fetched, body);
+  }, { rotation });
+});
+
+test("drops stale album ids from a saved rotation before the client edits it", async () => {
+  let configured = { albumIds: ["missing-album", "discovery"], durationDays: 7, mode: "sequential", expiresAt: 123 };
+  const rotation = {
+    snapshot: () => configured,
+    update: (next) => { configured = { ...next, expiresAt: 456 }; return configured; },
+  };
+
+  await withServer(async (baseUrl) => {
+    const saved = await (await fetch(`${baseUrl}/api/rotation`)).json();
+    assert.deepEqual(saved.albumIds, ["discovery"]);
+    assert.deepEqual(saved.albums.map(({ id }) => id), ["discovery"]);
+
+    const updated = await fetch(`${baseUrl}/api/rotation`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...saved, albumIds: [...saved.albumIds, "currents"] }),
+    });
+    assert.equal(updated.status, 200);
   }, { rotation });
 });
 

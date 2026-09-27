@@ -796,6 +796,29 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .app-section section { padding: 0; }
 .spotify-connect { margin-bottom: 30px; }
 .home-scanner, .home-shelf { margin-top: 30px; }
+.home-stack-hero { overflow: hidden; margin-bottom: 30px; border-radius: 24px; background: #171714; box-shadow: 0 28px 70px rgba(30,30,24,.18); }
+.home-stack-toolbar { position: relative; z-index: 25; display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 22px 24px 0; color: white; }
+.home-stack-toolbar .step { margin: 0 0 4px; color: var(--acid); }
+.home-stack-toolbar h2 { font-size: clamp(22px, 4vw, 34px); }
+.home-stack-toolbar button { flex: none; border: 1px solid #686860; border-radius: 999px; padding: 10px 13px; background: transparent; color: white; font: 500 8px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .07em; cursor: pointer; }
+.home-stack-toolbar button:hover { border-color: var(--acid); color: var(--acid); }
+.home-coverflow { margin: 0; min-height: 535px; border-radius: 0; background: radial-gradient(circle at 50% 32%, rgba(217,255,67,.19), transparent 31%); }
+.home-coverflow .coverflow-stage { height: 350px; }
+.home-coverflow .coverflow-cover { width: clamp(210px, 29vw, 285px); }
+.home-coverflow .flow-arrow { top: 170px; }
+.home-coverflow.empty-stack { min-height: 395px; }
+.home-coverflow.empty-stack .coverflow-stage { height: 190px; }
+.home-coverflow.empty-stack .flow-arrow { top: 85px; }
+.home-coverflow.empty-stack .coverflow-actions > button:not(#coverflow-empty-action) { display: none; }
+.discover-gateways { margin: 32px 0; }
+.discovery-shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.discovery-shortcuts > button { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 16px; padding: 17px; background: rgba(250,247,239,.78); color: var(--ink); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+.discovery-shortcuts > button:hover { border-color: #788c28; background: var(--card); transform: translateY(-2px); }
+.discovery-shortcuts .shortcut-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--acid); font-size: 22px; }
+.discovery-shortcuts strong, .discovery-shortcuts small { display: block; }
+.discovery-shortcuts strong { font-size: 15px; letter-spacing: -.025em; }
+.discovery-shortcuts small { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.home-section > .spotify-connect { margin-top: 30px; }
 .home-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 12px; }
 .home-section-heading .step { margin: 0 0 4px; color: #647817; }
 .home-section-heading h2 { font-size: clamp(24px, 4vw, 34px); }
@@ -815,6 +838,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .stack-section .album-view-switch { margin: 0 0 16px; }
 .stack-section .coverflow { margin-left: 0; }
 .stack-section .rotation-panel { margin-left: 0; }
+.rotation-panel[hidden] { display: none; }
 .stack-section .album-grid { margin-left: 0; }
 .devices-section .refresh-button { margin: 0 0 14px; }
 .devices-section .target-list { margin-left: 0; }
@@ -847,6 +871,19 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   .app-shell { width: calc(100% - 24px); padding-top: 22px; }
   .page-heading h1 { font-size: clamp(38px, 12vw, 58px); }
   .home-heading h1 { font-size: clamp(36px, 11vw, 52px); }
+  .home-heading { margin-bottom: 18px; }
+  .home-stack-hero { margin-right: -4px; margin-left: -4px; border-radius: 20px; }
+  .home-stack-toolbar { align-items: flex-start; padding: 18px 18px 0; }
+  .home-stack-toolbar h2 { font-size: 23px; }
+  .home-stack-toolbar button { padding: 9px 10px; }
+  .home-coverflow { min-height: 500px; }
+  .home-coverflow .coverflow-stage { height: 318px; }
+  .home-coverflow .coverflow-cover { top: 32px; width: min(60vw, 225px); }
+  .home-coverflow .flow-arrow { top: 145px; width: 38px; height: 38px; }
+  .home-coverflow.empty-stack { min-height: 370px; }
+  .home-coverflow.empty-stack .coverflow-stage { height: 170px; }
+  .home-coverflow.empty-stack .flow-arrow { top: 74px; }
+  .discovery-shortcuts { grid-template-columns: 1fr; }
   .spotify-connect { padding-top: 0; }
   .spotify-panel { grid-template-columns: 38px minmax(0,1fr); }
   .home-section-heading { display: block; }

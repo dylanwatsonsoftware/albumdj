@@ -23,38 +23,53 @@
     <main class="shell app-shell">
       <section class="app-section home-section" data-app-section="home" aria-labelledby="home-heading">
         <div class="page-heading home-heading">
-          <p class="eyebrow">Your physical music shelf</p>
-          <h1 id="home-heading">What do you want to hear?</h1>
+          <p class="eyebrow">Album DJ · multi-disc changer</p>
+          <h1 id="home-heading">Your album stack</h1>
+          <p>Your hand-picked rotation, ready to flick through and play.</p>
         </div>
 
-        <section class="spotify-connect" aria-labelledby="spotify-heading">
-          <div class="spotify-panel">
-            <div class="spotify-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="spotify-copy">
-              <p class="step">Spotify account</p>
-              <h2 id="spotify-heading">Connect Spotify</h2>
-              <p id="spotify-status">Checking connection…</p>
+        <section class="home-stack-hero" aria-labelledby="home-stack-heading">
+          <div class="home-stack-toolbar">
+            <div>
+              <p class="step">Now loaded</p>
+              <h2 id="home-stack-heading">Flick through your stack</h2>
             </div>
-            <a id="spotify-connect-button" class="connect-button" href="/api/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
-            <span id="spotify-connected-badge" class="connected-badge" hidden>Connected</span>
+            <button type="button" data-navigate="stack">Manage stack →</button>
+          </div>
+          <div id="coverflow" class="coverflow home-coverflow" tabindex="0" aria-label="Current album stack Cover Flow" data-coverflow-source="rotation">
+            <button id="coverflow-previous" class="flow-arrow previous" type="button" aria-label="Previous album">←</button>
+            <div id="coverflow-stage" class="coverflow-stage"></div>
+            <button id="coverflow-next" class="flow-arrow next" type="button" aria-label="Next album">→</button>
+            <div class="coverflow-details">
+              <p id="coverflow-position" class="coverflow-position"></p>
+              <h3 id="coverflow-title"></h3>
+              <p id="coverflow-artist"></p>
+              <div class="coverflow-actions">
+                <button id="coverflow-empty-action" class="flow-action primary" type="button" data-navigate="library" data-focus-target="album-search" hidden>Find albums</button>
+                <button id="coverflow-play" class="flow-action primary" type="button">Play album</button>
+                <button id="rotation-toggle" class="flow-action" type="button">Remove from stack</button>
+                <button id="coverflow-pair" class="flow-action" type="button">Pair NFC card</button>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section class="home-scanner" aria-labelledby="scanner-heading">
-          <div class="home-section-heading">
-            <div><p class="step">Physical collection</p><h2 id="scanner-heading">Scan an album card</h2></div>
-            <p>Tap a paired NFC card to your phone to start the album.</p>
-          </div>
-          <div class="nfc-panel">
-            <div><strong>Phone NFC reader</strong><p id="nfc-status" role="status">Checking NFC support…</p></div>
-            <button id="scan-nfc" class="nfc-button" type="button">Start scanning</button>
+        <section class="discover-gateways" aria-labelledby="discover-heading">
+          <div class="home-section-heading"><div><p class="step">Build your rotation</p><h2 id="discover-heading">Find something to play</h2></div></div>
+          <div class="discovery-shortcuts">
+            <button type="button" data-navigate="library" data-focus-target="album-search">
+              <span class="shortcut-icon" aria-hidden="true">⌕</span><span><strong>Search albums</strong><small>Find any album or artist on Spotify</small></span><span aria-hidden="true">→</span>
+            </button>
+            <button type="button" data-navigate="library" data-focus-target="favourite-artists">
+              <span class="shortcut-icon" aria-hidden="true">★</span><span><strong>Favourite artists</strong><small>Browse artists you follow and their latest releases</small></span><span aria-hidden="true">→</span>
+            </button>
           </div>
         </section>
 
         <section class="home-shelf" aria-labelledby="favourite-albums-heading">
           <div class="home-section-heading shelf-heading">
             <div><p class="step">Quick play</p><h2 id="favourite-albums-heading">Favourite albums</h2></div>
-            <button type="button" data-navigate="library">Find albums →</button>
+            <button type="button" data-navigate="library" data-focus-target="album-search">Find albums →</button>
           </div>
           <p id="favourite-albums-status" class="shelf-status">Keep your essential records close.</p>
           <div id="favourite-albums" class="favourite-album-shelf" role="list"></div>
@@ -68,9 +83,28 @@
           <div id="recent-release-albums" class="recent-release-albums" role="list"></div>
         </section>
 
-        <section class="stack-preview" aria-labelledby="stack-preview-heading">
-          <div><p class="step">Album DJ · multi-disc changer</p><h2 id="stack-preview-heading">Your album stack</h2><p>Keep a small rotation loaded for the next week or two.</p></div>
-          <button type="button" data-navigate="stack">Open stack →</button>
+        <section class="home-scanner" aria-labelledby="scanner-heading">
+          <div class="home-section-heading">
+            <div><p class="step">Physical collection</p><h2 id="scanner-heading">Scan an album card</h2></div>
+            <p>Tap a paired NFC card to your phone to start the album.</p>
+          </div>
+          <div class="nfc-panel">
+            <div><strong>Phone NFC reader</strong><p id="nfc-status" role="status">Checking NFC support…</p></div>
+            <button id="scan-nfc" class="nfc-button" type="button">Start scanning</button>
+          </div>
+        </section>
+
+        <section class="spotify-connect" aria-labelledby="spotify-heading">
+          <div class="spotify-panel">
+            <div class="spotify-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="spotify-copy">
+              <p class="step">Spotify account</p>
+              <h2 id="spotify-heading">Connect Spotify</h2>
+              <p id="spotify-status">Checking connection…</p>
+            </div>
+            <a id="spotify-connect-button" class="connect-button" href="/api/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
+            <span id="spotify-connected-badge" class="connected-badge" hidden>Connected</span>
+          </div>
         </section>
       </section>
 
@@ -98,28 +132,12 @@
       <section class="app-section stack-section" data-app-section="stack" aria-labelledby="stack-heading" hidden>
         <div class="page-heading">
           <p class="eyebrow">Multi-disc changer</p>
-          <h1 id="stack-heading">Album stack</h1>
-          <p>Browse your collection, load a short rotation, then play it in order or shuffle every song.</p>
+          <h1 id="stack-heading">Manage your stack</h1>
+          <p>Choose how the stack plays, remove loaded albums, or add more from your Spotify collection.</p>
         </div>
         <div class="album-view-switch" role="group" aria-label="Album view">
-          <button id="album-view-coverflow" type="button" aria-pressed="true">Cover Flow</button>
-          <button id="album-view-rotation" type="button" aria-pressed="false">Rotation</button>
+          <button id="album-view-rotation" type="button" aria-pressed="true">Loaded albums</button>
           <button id="album-view-grid" type="button" aria-pressed="false">Grid</button>
-        </div>
-        <div id="coverflow" class="coverflow" tabindex="0" aria-label="Album Cover Flow">
-          <button id="coverflow-previous" class="flow-arrow previous" type="button" aria-label="Previous album">←</button>
-          <div id="coverflow-stage" class="coverflow-stage"></div>
-          <button id="coverflow-next" class="flow-arrow next" type="button" aria-label="Next album">→</button>
-          <div class="coverflow-details">
-            <p id="coverflow-position" class="coverflow-position"></p>
-            <h3 id="coverflow-title"></h3>
-            <p id="coverflow-artist"></p>
-            <div class="coverflow-actions">
-              <button id="coverflow-play" class="flow-action primary" type="button">Play album</button>
-              <button id="rotation-toggle" class="flow-action" type="button">Add to rotation</button>
-              <button id="coverflow-pair" class="flow-action" type="button">Pair NFC card</button>
-            </div>
-          </div>
         </div>
         <div class="rotation-panel" aria-labelledby="rotation-heading">
           <div><p class="step">Album DJ · multi-disc changer</p><h3 id="rotation-heading">Your album stack</h3><p id="rotation-status">No albums selected.</p></div>

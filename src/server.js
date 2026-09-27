@@ -66,9 +66,11 @@ export function createPrototypeHandler(options = {}) {
   function rotationState(player, rotation) {
     const snapshot = rotation.snapshot();
     const albumById = new Map(player.snapshot().albums.map((album) => [album.id, album]));
+    const albumIds = snapshot.albumIds.filter((id) => albumById.has(id));
     return {
       ...snapshot,
-      albums: snapshot.albumIds.map((id) => albumById.get(id)).filter(Boolean),
+      albumIds,
+      albums: albumIds.map((id) => albumById.get(id)),
     };
   }
 
@@ -223,7 +225,7 @@ export function createPrototypeHandler(options = {}) {
       }
 
       if (request.method === "POST" && url.pathname === "/api/rotation/play") {
-        const currentRotation = rotation.snapshot();
+        const currentRotation = rotationState(player, rotation);
         if (!currentRotation.albumIds.length) throw new Error("Add at least one album to the rotation");
         const tracksByAlbum = new Map();
         for (const albumId of currentRotation.albumIds) {
