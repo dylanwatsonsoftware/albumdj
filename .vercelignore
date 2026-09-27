@@ -1,0 +1,5 @@
+.data/
+.env*
+.git/
+android/
+node_modules/

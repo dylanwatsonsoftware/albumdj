@@ -4,11 +4,41 @@ import assert from "node:assert/strict";
 import {
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
+  getCoverFlowTransform,
   getCoverFlowWindow,
   moveCoverFlowIndex,
   shouldRebuildCoverFlowWindow,
   settleCoverFlowDrag,
 } from "../public/coverflow.js";
+
+test("fans three covers out on each side without turning distant covers backwards", () => {
+  assert.deepEqual(getCoverFlowTransform(0), {
+    x: 0, z: 0, turn: 0, scale: 1, opacity: 1, order: 100,
+  });
+  assert.deepEqual(getCoverFlowTransform(-1), {
+    x: -150, z: -120, turn: 62, scale: 0.9, opacity: 0.86, order: 90,
+  });
+  assert.deepEqual(getCoverFlowTransform(1), {
+    x: 150, z: -120, turn: -62, scale: 0.9, opacity: 0.86, order: 90,
+  });
+  assert.deepEqual(getCoverFlowTransform(3), {
+    x: 260, z: -156, turn: -62, scale: 0.85, opacity: 0.58, order: 70,
+  });
+});
+
+test("moves continuously between the centre and side positions while dragging", () => {
+  assert.deepEqual(getCoverFlowTransform(0.5), {
+    x: 75, z: -60, turn: -31, scale: 0.95, opacity: 0.93, order: 95,
+  });
+  assert.deepEqual(getCoverFlowTransform(-0.5), {
+    x: -75, z: -60, turn: 31, scale: 0.95, opacity: 0.93, order: 95,
+  });
+});
+
+test("keeps the third side cover visible in a compact phone stage", () => {
+  assert.equal(getCoverFlowTransform(3, { centreGap: 105, sideSpacing: 34 }).x, 173);
+  assert.equal(getCoverFlowTransform(-3, { centreGap: 105, sideSpacing: 34 }).x, -173);
+});
 
 test("moves the focused cover without leaving the album collection", () => {
   assert.equal(moveCoverFlowIndex(1, 1, 4), 2);

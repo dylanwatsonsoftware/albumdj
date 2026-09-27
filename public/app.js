@@ -5,6 +5,7 @@ import { loadStartupPreferences, parseApiResponse, startupFailureMessage } from 
 import {
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
+  getCoverFlowTransform,
   getCoverFlowWindow,
   moveCoverFlowIndex,
   shouldRebuildCoverFlowWindow,
@@ -91,7 +92,7 @@ let autocompleteRequestNumber = 0;
 let cachedSearch = { query: "", results: null };
 let spotifyConnected = false;
 
-const COVER_SPACING = 105;
+const COVER_SPACING = 88;
 const SPOTIFY_LIBRARY_REFRESH_INTERVAL = 6 * 60 * 60 * 1_000;
 const SPOTIFY_LIBRARY_REFRESH_KEY = "albumdj:last-spotify-library-refresh";
 const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
@@ -827,7 +828,7 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
         image.src = album.imageUrl;
         image.alt = "";
         image.draggable = false;
-        image.loading = Math.abs(index - focusedIndex) <= 2 ? "eager" : "lazy";
+        image.loading = Math.abs(index - focusedIndex) <= 3 ? "eager" : "lazy";
         button.append(image);
       } else {
         button.textContent = album.title;
@@ -850,11 +851,16 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
     const index = Number(button.dataset.albumIndex);
     const album = albums[index];
     const offset = index - visiblePosition;
+    const transform = getCoverFlowTransform(offset, coverflowStage.clientWidth < 600
+      ? { centreGap: 105, sideSpacing: 34 }
+      : undefined);
     button.classList.toggle("active", index === focusedIndex);
-    button.style.setProperty("--flow-x", `${offset * COVER_SPACING}px`);
-    button.style.setProperty("--flow-z", `${Math.abs(offset) * -85}px`);
-    button.style.setProperty("--flow-turn", `${offset * -48}deg`);
-    button.style.setProperty("--flow-order", String(10 - Math.abs(offset)));
+    button.style.setProperty("--flow-x", `${transform.x}px`);
+    button.style.setProperty("--flow-z", `${transform.z}px`);
+    button.style.setProperty("--flow-turn", `${transform.turn}deg`);
+    button.style.setProperty("--flow-scale", String(transform.scale));
+    button.style.setProperty("--flow-order", String(transform.order));
+    button.style.opacity = String(transform.opacity);
     button.setAttribute("aria-label", index === focusedIndex
       ? `${album.title} by ${album.artist}, selected`
       : `Select ${album.title} by ${album.artist}`);
