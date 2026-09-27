@@ -49,12 +49,66 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="playback-toggle"/);
     assert.match(html, /id="playback-next"/);
     assert.match(html, /id="now-album"/);
+    assert.match(html, /id="album-search"/);
+    assert.match(html, /id="favourite-artists"/);
+    assert.match(html, /id="discovery-results"/);
     assert.match(html, /Connect Spotify/);
 
     const startupModule = await fetch(`${baseUrl}/startup.js`);
     assert.equal(startupModule.status, 200);
     assert.match(startupModule.headers.get("content-type"), /javascript/);
   });
+});
+
+test("searches Spotify, lists favourite artists, and shows their releases", async () => {
+  const favouriteArtists = [];
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    searchCatalog: async (query) => ({ query, albums: [{ id: "blue" }], artists: [{ id: "joni" }] }),
+    getArtistAlbums: async (artistId) => [{ id: "hejira", artistId }],
+  };
+
+  await withServer(async (baseUrl) => {
+    const search = await fetch(`${baseUrl}/api/spotify/search?q=joni`);
+    assert.deepEqual(await search.json(), { query: "joni", albums: [{ id: "blue" }], artists: [{ id: "joni" }] });
+
+    const releases = await fetch(`${baseUrl}/api/spotify/artists/joni/albums`);
+    assert.deepEqual(await releases.json(), [{ id: "hejira", artistId: "joni" }]);
+
+    const save = await fetch(`${baseUrl}/api/favourite-artists`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ artists: [{ id: "joni", name: "Joni Mitchell" }] }),
+    });
+    assert.equal(save.status, 200);
+    const savedArtists = [{ id: "joni", name: "Joni Mitchell", imageUrl: null, spotifyUrl: null }];
+    assert.deepEqual(await save.json(), savedArtists);
+    assert.deepEqual(await (await fetch(`${baseUrl}/api/favourite-artists`)).json(), savedArtists);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker", name: "Speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      favouriteArtists,
+      persistFavouriteArtists: async () => {},
+    }),
+  });
+});
+
+test("plays an album found through Spotify search on the selected device", async () => {
+  let command;
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getAlbum: async (id) => ({ id, title: "Blue", artist: "Joni Mitchell", spotifyUri: `spotify:album:${id}` }),
+    playAlbum: async (value) => { command = value; },
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/albums/blue/play`, { method: "POST" });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).album.title, "Blue");
+    assert.deepEqual(command, { deviceId: "whole-house", spotifyUri: "spotify:album:blue" });
+  }, { spotify });
 });
 
 test("exposes Spotify connection status", async () => {

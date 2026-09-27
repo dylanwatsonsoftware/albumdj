@@ -91,8 +91,10 @@ test("loads every saved-album page and maps albums into physical-card entries", 
             id: "album-2",
             name: "Second Page Album",
             uri: "spotify:album:album-2",
-            artists: [{ name: "Second Artist" }],
+            artists: [{ id: "artist-2", name: "Second Artist" }],
             images: [],
+            external_urls: { spotify: "https://open.spotify.com/album/album-2" },
+            release_date: "2025-02-01",
           },
         }],
         next: null,
@@ -104,8 +106,10 @@ test("loads every saved-album page and maps albums into physical-card entries", 
           id: "album-1",
           name: "A Favourite Album",
           uri: "spotify:album:album-1",
-          artists: [{ name: "A Favourite Artist" }],
+          artists: [{ id: "artist-1", name: "A Favourite Artist" }],
           images: [{ url: "https://image.test/cover.jpg" }],
+          external_urls: { spotify: "https://open.spotify.com/album/album-1" },
+          release_date: "2024-01-01",
         },
       }],
       next: "https://api.spotify.com/v1/me/albums?limit=50&offset=50",
@@ -129,6 +133,9 @@ test("loads every saved-album page and maps albums into physical-card entries", 
       artist: "A Favourite Artist",
       spotifyUri: "spotify:album:album-1",
       imageUrl: "https://image.test/cover.jpg",
+      artistId: "artist-1",
+      spotifyUrl: "https://open.spotify.com/album/album-1",
+      releaseDate: "2024-01-01",
     },
     {
       id: "album-2",
@@ -136,8 +143,94 @@ test("loads every saved-album page and maps albums into physical-card entries", 
       artist: "Second Artist",
       spotifyUri: "spotify:album:album-2",
       imageUrl: null,
+      artistId: "artist-2",
+      spotifyUrl: "https://open.spotify.com/album/album-2",
+      releaseDate: "2025-02-01",
     },
   ]);
+});
+
+test("searches Spotify for albums and artists", async () => {
+  let searchUrl;
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    fetchImpl: async (url) => {
+      searchUrl = new URL(String(url));
+      return Response.json({
+        albums: { items: [{
+          id: "album-1", name: "Blue", uri: "spotify:album:album-1",
+          artists: [{ id: "artist-1", name: "Joni Mitchell" }],
+          images: [{ url: "https://image.test/blue.jpg" }],
+          external_urls: { spotify: "https://open.spotify.com/album/album-1" },
+          release_date: "1971-06-22",
+        }] },
+        artists: { items: [{
+          id: "artist-1", name: "Joni Mitchell",
+          images: [{ url: "https://image.test/joni.jpg" }],
+          external_urls: { spotify: "https://open.spotify.com/artist/artist-1" },
+        }] },
+      });
+    },
+  });
+
+  const results = await spotify.searchCatalog("joni blue");
+
+  assert.equal(searchUrl.pathname, "/v1/search");
+  assert.equal(searchUrl.searchParams.get("q"), "joni blue");
+  assert.equal(searchUrl.searchParams.get("type"), "album,artist");
+  assert.deepEqual(results, {
+    albums: [{
+      id: "album-1", title: "Blue", artist: "Joni Mitchell", artistId: "artist-1",
+      spotifyUri: "spotify:album:album-1", imageUrl: "https://image.test/blue.jpg",
+      spotifyUrl: "https://open.spotify.com/album/album-1", releaseDate: "1971-06-22",
+    }],
+    artists: [{
+      id: "artist-1", name: "Joni Mitchell", imageUrl: "https://image.test/joni.jpg",
+      spotifyUrl: "https://open.spotify.com/artist/artist-1",
+    }],
+  });
+});
+
+test("loads an artist's newest unique releases", async () => {
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    fetchImpl: async () => Response.json({ items: [
+      { id: "old", name: "Old", uri: "spotify:album:old", artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {}, release_date: "2020-01-01" },
+      { id: "new", name: "New", uri: "spotify:album:new", artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {}, release_date: "2026-01-01" },
+      { id: "new", name: "New", uri: "spotify:album:new", artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {}, release_date: "2026-01-01" },
+    ], next: null }),
+  });
+
+  const releases = await spotify.getArtistAlbums("artist-1");
+
+  assert.deepEqual(releases.map(({ id }) => id), ["new", "old"]);
+});
+
+test("loads one Spotify album for safe playback by id", async () => {
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    fetchImpl: async () => Response.json({
+      id: "album-1", name: "Blue", uri: "spotify:album:album-1",
+      artists: [{ id: "artist-1", name: "Joni Mitchell" }], images: [], external_urls: {}, release_date: "1971",
+    }),
+  });
+
+  assert.equal((await spotify.getAlbum("album-1")).spotifyUri, "spotify:album:album-1");
 });
 
 test("returns Spotify devices that accept playback commands", async () => {

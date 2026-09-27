@@ -23,6 +23,7 @@ const assets = new Map([
   ["/live-playback.js", ["live-playback.js", "text/javascript; charset=utf-8"]],
   ["/coverflow.js", ["coverflow.js", "text/javascript; charset=utf-8"]],
   ["/rotation.js", ["rotation.js", "text/javascript; charset=utf-8"]],
+  ["/discovery.js", ["discovery.js", "text/javascript; charset=utf-8"]],
 ]);
 
 function sendJson(response, status, value) {
@@ -51,6 +52,8 @@ export function createPrototypeHandler(options = {}) {
       }),
       persistPlayer: async () => {},
       persistRotation: async () => {},
+      favouriteArtists: [],
+      persistFavouriteArtists: async () => {},
     };
   }
   const contextProvider = options.contextProvider ?? (async () => sharedContext);
@@ -83,6 +86,8 @@ export function createPrototypeHandler(options = {}) {
         rotation,
         persistPlayer = async () => {},
         persistRotation = async () => {},
+        favouriteArtists = [],
+        persistFavouriteArtists = async () => {},
       } = context;
 
       if (request.method === "GET" && url.pathname === "/api/state") {
@@ -95,6 +100,43 @@ export function createPrototypeHandler(options = {}) {
 
       if (request.method === "GET" && url.pathname === "/api/spotify/albums") {
         return sendJson(response, 200, await spotify.getSavedAlbums());
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/spotify/search") {
+        const query = url.searchParams.get("q")?.trim() ?? "";
+        if (!query) throw new Error("Enter an album or artist to search for");
+        return sendJson(response, 200, await spotify.searchCatalog(query));
+      }
+
+      const artistAlbumsMatch = url.pathname.match(/^\/api\/spotify\/artists\/([^/]+)\/albums$/);
+      if (request.method === "GET" && artistAlbumsMatch) {
+        return sendJson(response, 200, await spotify.getArtistAlbums(decodeURIComponent(artistAlbumsMatch[1])));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/favourite-artists") {
+        return sendJson(response, 200, favouriteArtists);
+      }
+
+      if (request.method === "PUT" && url.pathname === "/api/favourite-artists") {
+        const { artists: nextArtists } = await readJson(request);
+        if (!Array.isArray(nextArtists)) throw new Error("Favourite artists must be a list");
+        const sanitized = nextArtists.map((artist) => ({
+          id: String(artist.id),
+          name: String(artist.name),
+          imageUrl: artist.imageUrl || null,
+          spotifyUrl: artist.spotifyUrl || null,
+        }));
+        favouriteArtists.splice(0, favouriteArtists.length, ...sanitized);
+        await persistFavouriteArtists();
+        return sendJson(response, 200, favouriteArtists);
+      }
+
+      const discoveredPlayMatch = url.pathname.match(/^\/api\/spotify\/albums\/([^/]+)\/play$/);
+      if (request.method === "POST" && discoveredPlayMatch) {
+        const album = await spotify.getAlbum(decodeURIComponent(discoveredPlayMatch[1]));
+        const target = player.snapshot().targets.find(({ id }) => id === player.snapshot().selectedTargetId);
+        await spotify.playAlbum({ deviceId: target.id, spotifyUri: album.spotifyUri });
+        return sendJson(response, 200, { album, target, mode: "spotify" });
       }
 
       if (request.method === "GET" && url.pathname === "/api/spotify/playback") {

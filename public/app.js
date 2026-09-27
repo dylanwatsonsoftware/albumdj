@@ -11,6 +11,7 @@ import {
   settleCoverFlowDrag,
 } from "./coverflow.js";
 import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
+import { filterAlbums, toggleFavouriteArtist } from "./discovery.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -32,6 +33,11 @@ const rotationDuration = document.querySelector("#rotation-duration");
 const rotationMode = document.querySelector("#rotation-mode");
 const rotationPlayButton = document.querySelector("#rotation-play");
 const rotationAlbumsElement = document.querySelector("#rotation-albums");
+const searchForm = document.querySelector("#album-search-form");
+const searchInput = document.querySelector("#album-search");
+const discoveryResultsElement = document.querySelector("#discovery-results");
+const favouriteArtistsElement = document.querySelector("#favourite-artists");
+const favouriteArtistsStatus = document.querySelector("#favourite-artists-status");
 
 let state;
 let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", expiresAt: null };
@@ -43,6 +49,7 @@ let dragPosition = null;
 let dragGesture = null;
 let suppressCoverClick = false;
 let renderedCoverIndexes = [];
+let favouriteArtists = [];
 
 const COVER_SPACING = 105;
 const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
@@ -115,8 +122,12 @@ async function refreshDevices() {
   }
 }
 
+function visibleAlbums() {
+  return filterAlbums(state.albums, searchInput.value);
+}
+
 function renderAlbums() {
-  albumsElement.replaceChildren(...state.albums.map((album, index) => {
+  albumsElement.replaceChildren(...visibleAlbums().map((album, index) => {
     const card = document.createElement("article");
     card.className = "album-card";
     card.dataset.albumId = album.id;
@@ -175,7 +186,215 @@ function renderAlbums() {
 }
 
 function flowAlbums() {
-  return coverflowSource === "rotation" ? rotation.albums : state.albums;
+  return coverflowSource === "rotation" ? rotation.albums : visibleAlbums();
+}
+
+function artistFromAlbum(album) {
+  if (!album.artistId) return null;
+  return { id: album.artistId, name: album.artist.split(", ")[0], imageUrl: null, spotifyUrl: null };
+}
+
+function favouriteButton(artist) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "favourite-button";
+  const isFavourite = favouriteArtists.some(({ id }) => id === artist.id);
+  button.textContent = isFavourite ? "★ Favourited" : "☆ Favourite artist";
+  button.setAttribute("aria-pressed", String(isFavourite));
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    favouriteArtists = toggleFavouriteArtist(favouriteArtists, artist);
+    favouriteArtists = await request("/api/favourite-artists", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ artists: favouriteArtists }),
+    });
+    renderFavouriteArtists();
+    button.replaceWith(favouriteButton(artist));
+  });
+  return button;
+}
+
+function albumResultCard(album) {
+  const card = document.createElement("article");
+  card.className = "discovery-card album-result";
+  const artwork = document.createElement("div");
+  artwork.className = "discovery-art";
+  if (album.imageUrl) {
+    const image = document.createElement("img");
+    image.src = album.imageUrl;
+    image.alt = "";
+    image.loading = "lazy";
+    artwork.append(image);
+  }
+  const copy = document.createElement("div");
+  copy.className = "discovery-copy";
+  const type = document.createElement("small");
+  type.textContent = album.releaseDate ? `Album · ${album.releaseDate.slice(0, 4)}` : "Album";
+  const title = document.createElement("strong");
+  title.textContent = album.title;
+  const artist = document.createElement("span");
+  artist.textContent = album.artist;
+  copy.append(type, title, artist);
+  const actions = document.createElement("div");
+  actions.className = "discovery-actions";
+  const play = document.createElement("button");
+  play.type = "button";
+  play.className = "result-play";
+  play.textContent = "Play album";
+  play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
+  actions.append(play);
+  const albumArtist = artistFromAlbum(album);
+  if (albumArtist) actions.append(favouriteButton(albumArtist));
+  if (album.spotifyUrl) {
+    const spotifyLink = document.createElement("a");
+    spotifyLink.href = album.spotifyUrl;
+    spotifyLink.target = "_blank";
+    spotifyLink.rel = "noreferrer";
+    spotifyLink.textContent = "Open in Spotify ↗";
+    actions.append(spotifyLink);
+  }
+  card.append(artwork, copy, actions);
+  return card;
+}
+
+function artistResultCard(artist) {
+  const card = document.createElement("article");
+  card.className = "discovery-card artist-result";
+  const artwork = document.createElement("div");
+  artwork.className = "discovery-art artist-art";
+  if (artist.imageUrl) {
+    const image = document.createElement("img");
+    image.src = artist.imageUrl;
+    image.alt = "";
+    image.loading = "lazy";
+    artwork.append(image);
+  }
+  const copy = document.createElement("div");
+  copy.className = "discovery-copy";
+  const type = document.createElement("small");
+  type.textContent = "Artist";
+  const name = document.createElement("strong");
+  name.textContent = artist.name;
+  copy.append(type, name);
+  const actions = document.createElement("div");
+  actions.className = "discovery-actions";
+  const releases = document.createElement("button");
+  releases.type = "button";
+  releases.className = "result-play";
+  releases.textContent = "View releases";
+  releases.addEventListener("click", () => showArtistReleases(artist, releases));
+  actions.append(releases, favouriteButton(artist));
+  if (artist.spotifyUrl) {
+    const spotifyLink = document.createElement("a");
+    spotifyLink.href = artist.spotifyUrl;
+    spotifyLink.target = "_blank";
+    spotifyLink.rel = "noreferrer";
+    spotifyLink.textContent = "Spotify ↗";
+    actions.append(spotifyLink);
+  }
+  card.append(artwork, copy, actions);
+  return card;
+}
+
+function renderDiscoveryResults({ heading, albums = [], artists = [] }) {
+  const headingElement = document.createElement("h3");
+  headingElement.textContent = heading;
+  const list = document.createElement("div");
+  list.className = "discovery-grid";
+  list.replaceChildren(...artists.map(artistResultCard), ...albums.map(albumResultCard));
+  if (!list.children.length) {
+    const empty = document.createElement("p");
+    empty.className = "discovery-empty";
+    empty.textContent = "No matching albums or artists found.";
+    list.append(empty);
+  }
+  discoveryResultsElement.replaceChildren(headingElement, list);
+}
+
+function renderFavouriteArtists() {
+  favouriteArtistsStatus.textContent = favouriteArtists.length
+    ? `${favouriteArtists.length} artist${favouriteArtists.length === 1 ? "" : "s"} saved · choose one to check recent releases.`
+    : "Search for an artist, then tap Favourite artist.";
+  favouriteArtistsElement.replaceChildren(...favouriteArtists.map((artist) => {
+    const card = document.createElement("article");
+    card.className = "favourite-artist";
+    card.setAttribute("role", "listitem");
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "favourite-artist-open";
+    if (artist.imageUrl) {
+      const image = document.createElement("img");
+      image.src = artist.imageUrl;
+      image.alt = "";
+      open.append(image);
+    }
+    const name = document.createElement("strong");
+    name.textContent = artist.name;
+    open.append(name);
+    open.addEventListener("click", () => showArtistReleases(artist, open));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "favourite-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Remove ${artist.name} from favourites`);
+    remove.addEventListener("click", async () => {
+      favouriteArtists = toggleFavouriteArtist(favouriteArtists, artist);
+      favouriteArtists = await request("/api/favourite-artists", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ artists: favouriteArtists }),
+      });
+      renderFavouriteArtists();
+    });
+    card.append(open, remove);
+    return card;
+  }));
+}
+
+async function searchSpotify(event) {
+  event.preventDefault();
+  const query = searchInput.value.trim();
+  if (!query) return;
+  const button = searchForm.querySelector("button");
+  button.disabled = true;
+  button.textContent = "Searching…";
+  try {
+    const results = await request(`/api/spotify/search?q=${encodeURIComponent(query)}`);
+    renderDiscoveryResults({ heading: `Spotify results for “${query}”`, ...results });
+  } catch (error) {
+    renderDiscoveryResults({ heading: error.message });
+  } finally {
+    button.disabled = false;
+    button.textContent = "Search Spotify";
+  }
+}
+
+async function showArtistReleases(artist, button) {
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = "Loading…";
+  try {
+    const albums = await request(`/api/spotify/artists/${encodeURIComponent(artist.id)}/albums`);
+    renderDiscoveryResults({ heading: `Recent releases by ${artist.name}`, albums });
+    discoveryResultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+async function playDiscoveredAlbum(albumId, button) {
+  button.disabled = true;
+  button.textContent = "Starting…";
+  try {
+    const playback = await request(`/api/spotify/albums/${encodeURIComponent(albumId)}/play`, { method: "POST" });
+    showPlayback(playback);
+    setTimeout(() => playbackMonitor?.refresh(), 800);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Play album";
+  }
 }
 
 function renderCoverFlow({ preserveWindow = false } = {}) {
@@ -567,6 +786,12 @@ function showStartupFailure(error) {
 
 async function startApp() {
   state = await request("/api/state");
+  searchForm.addEventListener("submit", searchSpotify);
+  searchInput.addEventListener("input", () => {
+    activeCoverIndex = 0;
+    renderAlbums();
+    if (coverflowSource === "all") renderCoverFlow();
+  });
   refreshDevicesButton.addEventListener("click", refreshDevices);
   scanNfcButton.addEventListener("click", startNfcScan);
   playbackToggleButton.addEventListener("click", togglePlayback);
@@ -602,6 +827,7 @@ async function startApp() {
     }
   }
   rotation = await request("/api/rotation");
+  favouriteArtists = await request("/api/favourite-artists");
 
   if ("NDEFReader" in globalThis) {
     showNfcStatus("Ready. Start scanning, or pair a blank card to an album.");
@@ -614,6 +840,7 @@ async function startApp() {
   renderAlbums();
   renderCoverFlow();
   renderRotation();
+  renderFavouriteArtists();
   renderSpotifyStatus(spotifyStatus);
 
   if (state.lastPlayback) showPlayback(state.lastPlayback);

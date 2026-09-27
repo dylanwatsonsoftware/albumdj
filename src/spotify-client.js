@@ -10,6 +10,28 @@ function base64Url(value) {
   return Buffer.from(value).toString("base64url");
 }
 
+function mapAlbum(album) {
+  return {
+    id: album.id,
+    title: album.name,
+    artist: album.artists.map(({ name }) => name).join(", "),
+    artistId: album.artists[0]?.id ?? null,
+    spotifyUri: album.uri,
+    imageUrl: album.images[0]?.url ?? null,
+    spotifyUrl: album.external_urls?.spotify ?? null,
+    releaseDate: album.release_date ?? null,
+  };
+}
+
+function mapArtist(artist) {
+  return {
+    id: artist.id,
+    name: artist.name,
+    imageUrl: artist.images[0]?.url ?? null,
+    spotifyUrl: artist.external_urls?.spotify ?? null,
+  };
+}
+
 export function createSpotifyClient({
   clientId,
   redirectUri,
@@ -139,13 +161,34 @@ export function createSpotifyClient({
         next = page.next;
       }
 
-      return items.map(({ album }) => ({
-        id: album.id,
-        title: album.name,
-        artist: album.artists.map(({ name }) => name).join(", "),
-        spotifyUri: album.uri,
-        imageUrl: album.images[0]?.url ?? null,
-      }));
+      return items.map(({ album }) => mapAlbum(album));
+    },
+
+    async searchCatalog(query) {
+      const cleanedQuery = query.trim();
+      if (!cleanedQuery) return { albums: [], artists: [] };
+      const params = new URLSearchParams({ q: cleanedQuery, type: "album,artist", limit: "10" });
+      const results = await spotifyJson(`/search?${params}`);
+      return {
+        albums: (results.albums?.items ?? []).filter(Boolean).map(mapAlbum),
+        artists: (results.artists?.items ?? []).filter(Boolean).map(mapArtist),
+      };
+    },
+
+    async getArtistAlbums(artistId) {
+      const albums = [];
+      let next = `/artists/${encodeURIComponent(artistId)}/albums?include_groups=album,single&limit=50`;
+      while (next) {
+        const page = await spotifyJson(next);
+        albums.push(...page.items.filter(Boolean));
+        next = page.next;
+      }
+      const unique = [...new Map(albums.map((album) => [album.id, album])).values()];
+      return unique.map(mapAlbum).sort((left, right) => (right.releaseDate ?? "").localeCompare(left.releaseDate ?? ""));
+    },
+
+    async getAlbum(albumId) {
+      return mapAlbum(await spotifyJson(`/albums/${encodeURIComponent(albumId)}`));
     },
 
     async getAvailableDevices() {

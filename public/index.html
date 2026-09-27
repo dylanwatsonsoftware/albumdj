@@ -58,8 +58,27 @@
           </div>
           <button id="scan-nfc" class="nfc-button" type="button">Start scanning</button>
         </div>
+        <section class="discovery" aria-labelledby="discovery-heading">
+          <div class="section-copy">
+            <p class="step">03</p>
+            <div>
+              <h2 id="discovery-heading">Find an album</h2>
+              <p>Filter your collection or search all of Spotify. Favourite artists to keep their newest releases close.</p>
+            </div>
+          </div>
+          <form id="album-search-form" class="search-bar" role="search">
+            <input id="album-search" type="search" autocomplete="off" placeholder="Album or artist" aria-label="Search albums and artists">
+            <button type="submit">Search Spotify</button>
+          </form>
+          <div class="favourite-heading">
+            <h3>Favourite artists</h3>
+            <p id="favourite-artists-status">Your shortcut to new releases.</p>
+          </div>
+          <div id="favourite-artists" class="artist-shelf" role="list"></div>
+          <div id="discovery-results" class="discovery-results" aria-live="polite"></div>
+        </section>
         <div class="section-copy catalogue-heading">
-          <p class="step">03</p>
+          <p class="step">04</p>
           <div>
             <h2>Choose an album</h2>
             <p>Swipe through your collection, then play it or pair it to a physical card.</p>
