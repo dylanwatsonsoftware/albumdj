@@ -106,7 +106,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(styles, /--card:\s*#191a17/);
     assert.match(styles, /html,\s*body\s*\{[^}]*overflow-x:\s*clip/s);
     assert.match(styles, /\.recent-release-actions\s*\{[^}]*flex-wrap:\s*wrap/s);
-    assert.match(styles, /\.recent-release-card\s*\{[^}]*flex:\s*0\s+0\s+min\(78vw,\s*250px\)/s);
+    assert.match(styles, /\.recent-release-card\s*\{[^}]*flex:\s*0\s+0\s+min\(72vw,\s*230px\)/s);
   });
 });
 

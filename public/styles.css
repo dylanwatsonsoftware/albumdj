@@ -951,7 +951,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   .recent-releases-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
   .recent-releases-heading > p { max-width: none; text-align: left; }
   .recent-release-albums { gap: 14px; scroll-padding-left: 2px; }
-  .recent-release-card { flex: 0 0 min(78vw, 250px); }
+  .recent-release-card { flex: 0 0 min(72vw, 230px); }
   .recent-release-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .recent-release-actions button,
   .recent-release-actions a { width: 100%; min-height: 34px; display: grid; place-items: center; padding: 7px 6px; text-align: center; line-height: 1.15; }
