@@ -265,6 +265,7 @@ export function createPrototypeHandler(options = {}) {
           id: String(album.id),
           title: String(album.title),
           artist: String(album.artist),
+          ...(album.artistId ? { artistId: String(album.artistId) } : {}),
           imageUrl: album.imageUrl || null,
           spotifyUrl: album.spotifyUrl || null,
           releaseDate: album.releaseDate || null,

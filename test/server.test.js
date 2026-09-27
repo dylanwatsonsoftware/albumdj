@@ -71,6 +71,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /class="home-stack-hero"/);
     assert.match(html, /data-coverflow-source="rotation"/);
     assert.match(html, /id="coverflow-empty-action"/);
+    assert.match(html, /id="coverflow-artist-albums"/);
     assert.match(html, /data-focus-target="album-search"/);
     assert.match(html, /data-focus-target="favourite-artists"/);
 
@@ -97,14 +98,15 @@ test("saves and lists favourite albums", async () => {
         id: "blue",
         title: "Blue",
         artist: "Joni Mitchell",
+        artistId: "joni",
         imageUrl: "https://image.test/blue.jpg",
         spotifyUrl: "https://open.spotify.com/album/blue",
         releaseDate: "1971-06-22",
       }] }),
     });
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).map(({ id }) => id), ["blue"]);
-    assert.deepEqual((await (await fetch(`${baseUrl}/api/favourite-albums`)).json()).map(({ id }) => id), ["blue"]);
+    assert.deepEqual((await response.json()).map(({ id, artistId }) => ({ id, artistId })), [{ id: "blue", artistId: "joni" }]);
+    assert.deepEqual((await (await fetch(`${baseUrl}/api/favourite-albums`)).json()).map(({ id, artistId }) => ({ id, artistId })), [{ id: "blue", artistId: "joni" }]);
   }, {
     contextProvider: async () => ({
       player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),

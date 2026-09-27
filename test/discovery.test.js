@@ -6,6 +6,7 @@ import {
   buildAutocompleteSuggestions,
   filterAlbums,
   getArtistInitials,
+  getAlbumArtist,
   getFavouriteActionState,
   getFavouriteAlbumActionState,
   getResultActions,
@@ -60,8 +61,16 @@ test("moves through autocomplete suggestions without leaving the list", () => {
 });
 
 test("album results can play or be favourited while artist results expose releases", () => {
-  assert.deepEqual(getResultActions("album"), ["play", "favourite"]);
+  assert.deepEqual(getResultActions("album"), ["play", "artist", "favourite"]);
   assert.deepEqual(getResultActions("artist"), ["releases", "favourite"]);
+});
+
+test("resolves the artist destination carried by an album", () => {
+  assert.deepEqual(
+    getAlbumArtist({ artistId: "joni", artist: "Joni Mitchell" }),
+    { id: "joni", name: "Joni Mitchell" },
+  );
+  assert.equal(getAlbumArtist({ artist: "Unknown artist" }), null);
 });
 
 test("explains artist release failures instead of leaving an empty result", () => {

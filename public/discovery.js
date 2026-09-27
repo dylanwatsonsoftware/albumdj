@@ -46,6 +46,11 @@ export function getArtistInitials(name) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => [...part][0] ?? "").join("").toLocaleUpperCase();
 }
 
+export function getAlbumArtist(album) {
+  if (!album?.artistId) return null;
+  return { id: album.artistId, name: album.artist || "Artist" };
+}
+
 export function shouldRequestAutocomplete(query) {
   return query.trim().length >= 2;
 }
@@ -75,7 +80,7 @@ export function moveSuggestionIndex(currentIndex, delta, suggestionCount) {
 }
 
 export function getResultActions(resultType) {
-  return resultType === "artist" ? ["releases", "favourite"] : ["play", "favourite"];
+  return resultType === "artist" ? ["releases", "favourite"] : ["play", "artist", "favourite"];
 }
 
 export function artistReleaseErrorMessage(artistName, error) {

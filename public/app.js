@@ -23,6 +23,7 @@ import {
   buildAutocompleteSuggestions,
   filterAlbums,
   getArtistInitials,
+  getAlbumArtist,
   getFavouriteAlbumActionState,
   getFavouriteActionState,
   getRecentReleasesViewState,
@@ -47,6 +48,7 @@ const playbackNextButton = document.querySelector("#playback-next");
 const coverflowElement = document.querySelector("#coverflow");
 const coverflowStage = document.querySelector("#coverflow-stage");
 const coverflowPlayButton = document.querySelector("#coverflow-play");
+const coverflowArtistAlbumsButton = document.querySelector("#coverflow-artist-albums");
 const coverflowEmptyAction = document.querySelector("#coverflow-empty-action");
 const coverflowPairButton = document.querySelector("#coverflow-pair");
 const gridViewButton = document.querySelector("#album-view-grid");
@@ -207,6 +209,27 @@ function visibleAlbums() {
   return filterAlbums(state.albums, searchInput.value);
 }
 
+function artistAlbumsButton(album, className = "artist-albums-button") {
+  const enrichedAlbum = album.artistId
+    ? album
+    : { ...album, artistId: state.albums.find(({ id }) => id === album.id)?.artistId };
+  const artist = getAlbumArtist(enrichedAlbum);
+  if (!artist) return null;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = "View artist albums";
+  button.addEventListener("click", () => viewAlbumArtist(enrichedAlbum, button));
+  return button;
+}
+
+function viewAlbumArtist(album, button) {
+  const artist = getAlbumArtist(album);
+  if (!artist) return;
+  showAppSection("library");
+  void showArtistReleases(artist, button);
+}
+
 function renderAlbums() {
   albumsElement.replaceChildren(...visibleAlbums().map((album, index) => {
     const card = document.createElement("article");
@@ -260,8 +283,12 @@ function renderAlbums() {
     rotationButton.textContent = rotation.albumIds.includes(album.id) ? "Remove from rotation" : "Add to rotation";
     rotationButton.addEventListener("click", () => toggleAlbumInRotation(album.id));
 
+    const viewArtistButton = artistAlbumsButton(album, "pair-button artist-card-button");
+
     playButton.addEventListener("click", () => scanAlbum(album.id));
-    card.append(playButton, rotationButton, pairButton);
+    card.append(playButton, rotationButton);
+    if (viewArtistButton) card.append(viewArtistButton);
+    card.append(pairButton);
     return card;
   }));
 }
@@ -326,6 +353,10 @@ function albumResultCard(album) {
     play.textContent = "Play album";
     play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
     actions.append(play);
+  }
+  if (getResultActions("album").includes("artist")) {
+    const viewArtistButton = artistAlbumsButton(album, "result-play result-artist");
+    if (viewArtistButton) actions.append(viewArtistButton);
   }
   if (getResultActions("album").includes("favourite")) actions.append(favouriteAlbumButton(album));
   if (album.spotifyUrl) {
@@ -397,6 +428,8 @@ function renderFavouriteAlbums() {
     play.append(artwork, copy);
     play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
 
+    const viewArtistButton = artistAlbumsButton(album, "favourite-album-artist");
+
     const menu = document.createElement("details");
     menu.className = "favourite-album-menu";
     const menuToggle = document.createElement("summary");
@@ -417,7 +450,9 @@ function renderFavouriteAlbums() {
       renderFavouriteAlbums();
     });
     menu.append(menuToggle, remove);
-    card.append(play, menu);
+    card.append(play);
+    if (viewArtistButton) card.append(viewArtistButton);
+    card.append(menu);
     return card;
   }));
 }
@@ -586,6 +621,8 @@ function recentReleaseCard(album) {
   play.textContent = "Play album";
   play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
   actions.append(play);
+  const viewArtistButton = artistAlbumsButton(album, "recent-artist-albums");
+  if (viewArtistButton) actions.append(viewArtistButton);
   if (album.spotifyUrl) {
     const link = document.createElement("a");
     link.href = album.spotifyUrl;
@@ -831,6 +868,7 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
     document.querySelector("#coverflow-previous").disabled = true;
     document.querySelector("#coverflow-next").disabled = true;
     coverflowPlayButton.disabled = true;
+    coverflowArtistAlbumsButton.hidden = true;
     coverflowPairButton.disabled = true;
     rotationToggleButton.disabled = true;
     rotationToggleButton.textContent = "Remove from stack";
@@ -908,6 +946,7 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
   document.querySelector("#coverflow-previous").disabled = focusedIndex === 0;
   document.querySelector("#coverflow-next").disabled = focusedIndex === albums.length - 1;
   coverflowPlayButton.disabled = false;
+  coverflowArtistAlbumsButton.hidden = !activeAlbum.artistId;
   coverflowPairButton.disabled = !("NDEFReader" in globalThis);
   rotationToggleButton.disabled = false;
   rotationToggleButton.textContent = "Remove from stack";
@@ -1033,8 +1072,14 @@ function renderRotation() {
       await saveRotation(removeRotationAlbum(rotation.albumIds, album.id));
     });
 
+    const itemActions = document.createElement("div");
+    itemActions.className = "rotation-item-actions";
+    const viewArtistButton = artistAlbumsButton(album, "rotation-artist");
+
     playButton.append(artwork, copy);
-    item.append(playButton, removeButton);
+    if (viewArtistButton) itemActions.append(viewArtistButton);
+    itemActions.append(removeButton);
+    item.append(playButton, itemActions);
     return item;
   }));
 }
@@ -1247,6 +1292,10 @@ async function startApp() {
   document.querySelector("#coverflow-previous").addEventListener("click", () => moveCoverFlow(-1));
   document.querySelector("#coverflow-next").addEventListener("click", () => moveCoverFlow(1));
   coverflowPlayButton.addEventListener("click", () => scanAlbum(flowAlbums()[activeCoverIndex].id));
+  coverflowArtistAlbumsButton.addEventListener("click", () => {
+    const album = flowAlbums()[activeCoverIndex];
+    if (album) viewAlbumArtist(album, coverflowArtistAlbumsButton);
+  });
   coverflowPairButton.addEventListener("click", () => pairAlbum(flowAlbums()[activeCoverIndex]));
   rotationToggleButton.addEventListener("click", () => toggleAlbumInRotation(flowAlbums()[activeCoverIndex].id));
   rotationViewButton.addEventListener("click", () => setAlbumView("rotation"));

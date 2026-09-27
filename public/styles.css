@@ -297,6 +297,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .favourite-album-copy strong, .favourite-album-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .favourite-album-copy strong { font-size: 12px; }
 .favourite-album-copy small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.favourite-album-artist { margin: 0 10px 10px; border: 0; border-bottom: 1px solid var(--ink); padding: 0 0 2px; background: transparent; font: 500 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
 .favourite-album-menu { position: absolute; z-index: 6; top: 7px; right: 7px; }
 .favourite-album-menu summary { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); cursor: pointer; list-style: none; font-size: 10px; letter-spacing: 1px; }
 .favourite-album-menu summary::-webkit-details-marker { display: none; }
@@ -374,6 +375,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .recent-release-actions { display: flex; gap: 8px; align-items: center; margin-top: 9px; }
 .recent-release-actions button { border: 1px solid var(--acid); border-radius: 999px; padding: 7px 9px; background: var(--acid); color: var(--ink); font: 600 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; }
 .recent-release-actions button:disabled { opacity: .55; cursor: wait; }
+.recent-release-actions .recent-artist-albums { border-color: #686860; background: transparent; color: white; }
 .recent-release-actions a { color: #aaa99f; font: 500 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .05em; }
 .discovery-results { scroll-margin-top: 18px; }
 .discovery-results:empty { display: none; }
@@ -514,7 +516,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .coverflow-position { margin: 0 0 7px; color: var(--acid); font-family: "DM Mono", monospace; font-size: 9px; letter-spacing: .12em; }
 .coverflow-details h3 { margin: 0; font-size: clamp(20px, 3vw, 30px); letter-spacing: -.04em; }
 .coverflow-details > p:not(.coverflow-position) { margin: 4px 0 0; color: #aaa99f; font-size: 12px; }
-.coverflow-actions { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+.coverflow-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
 .flow-action { border: 1px solid #77776f; border-radius: 9px; padding: 10px 14px; background: transparent; color: white; font-family: "DM Mono", monospace; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
 .flow-action.primary { border-color: var(--acid); background: var(--acid); color: var(--ink); }
 .flow-action:disabled { opacity: .42; cursor: not-allowed; }
@@ -591,6 +593,9 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .rotation-remove { border: 1px solid #5e5e56; border-radius: 5px; padding: 7px 6px; background: #191916; color: #aaa99f; font: 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
 .rotation-remove:hover { border-color: var(--acid); color: var(--acid); }
 .rotation-remove:disabled { opacity: .4; }
+.rotation-item-actions { display: grid; gap: 4px; }
+.rotation-artist { border: 0; border-bottom: 1px solid #77776e; padding: 2px 0; background: transparent; color: #d1d1c8; font: 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; }
+.rotation-artist:hover { border-color: var(--acid); color: var(--acid); }
 
 .target-card {
   appearance: none;
