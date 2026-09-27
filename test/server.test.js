@@ -50,6 +50,10 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="playback-next"/);
     assert.match(html, /id="now-album"/);
     assert.match(html, /Connect Spotify/);
+
+    const startupModule = await fetch(`${baseUrl}/startup.js`);
+    assert.equal(startupModule.status, 200);
+    assert.match(startupModule.headers.get("content-type"), /javascript/);
   });
 });
 

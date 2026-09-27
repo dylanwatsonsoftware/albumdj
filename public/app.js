@@ -1,6 +1,7 @@
 import { scanAlbumCards, writeAlbumCard } from "./nfc.js";
 import { refreshSpotifyOnLoad } from "./spotify-sync.js";
 import { createPlaybackMonitor } from "./live-playback.js";
+import { parseApiResponse, startupFailureMessage } from "./startup.js";
 import {
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
@@ -78,10 +79,7 @@ function renderSpotifyStatus(status) {
 
 async function request(path, options) {
   const response = await fetch(path, options);
-  if (response.status === 204) return null;
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error || "Request failed");
-  return body;
+  return parseApiResponse(response);
 }
 
 function renderTargets() {
@@ -560,72 +558,83 @@ async function skipNext() {
   }
 }
 
-state = await request("/api/state");
-refreshDevicesButton.addEventListener("click", refreshDevices);
-scanNfcButton.addEventListener("click", startNfcScan);
-playbackToggleButton.addEventListener("click", togglePlayback);
-playbackNextButton.addEventListener("click", skipNext);
-document.querySelector("#coverflow-previous").addEventListener("click", () => moveCoverFlow(-1));
-document.querySelector("#coverflow-next").addEventListener("click", () => moveCoverFlow(1));
-coverflowPlayButton.addEventListener("click", () => scanAlbum(flowAlbums()[activeCoverIndex].id));
-coverflowPairButton.addEventListener("click", () => pairAlbum(flowAlbums()[activeCoverIndex]));
-rotationToggleButton.addEventListener("click", () => toggleAlbumInRotation(flowAlbums()[activeCoverIndex].id));
-coverflowViewButton.addEventListener("click", () => setAlbumView("coverflow"));
-rotationViewButton.addEventListener("click", () => setAlbumView("rotation"));
-gridViewButton.addEventListener("click", () => setAlbumView("grid"));
-rotationDuration.addEventListener("change", () => saveRotation());
-rotationMode.addEventListener("change", () => saveRotation());
-rotationPlayButton.addEventListener("click", playRotation);
-coverflowElement.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-    event.preventDefault();
-    moveCoverFlow(event.key === "ArrowLeft" ? -1 : 1);
-  }
-});
-coverflowStage.addEventListener("pointerdown", beginCoverFlowDrag);
-coverflowStage.addEventListener("pointermove", updateCoverFlowDrag);
-coverflowStage.addEventListener("pointerup", finishCoverFlowDrag);
-coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
-
-const spotifyStatus = await request("/api/spotify/status");
-if (spotifyStatus.connected) {
-  try {
-    state = await refreshSpotifyOnLoad({ connected: true, request });
-  } catch (error) {
-    document.querySelector("#destination-status").textContent = error.message;
-  }
-}
-rotation = await request("/api/rotation");
-
-if ("NDEFReader" in globalThis) {
-  showNfcStatus("Ready. Start scanning, or pair a blank card to an album.");
-} else {
-  scanNfcButton.disabled = true;
-  showNfcStatus("Web NFC is unavailable here. Use Chrome on an NFC-capable Android phone over HTTPS.");
+function showStartupFailure(error) {
+  document.querySelector("#spotify-status").textContent = startupFailureMessage(error);
+  document.querySelector("#spotify-connect-button").hidden = true;
+  document.querySelector("#spotify-connected-badge").hidden = true;
+  document.querySelector("#destination-status").textContent = "Album DJ’s server setup is incomplete.";
 }
 
-renderTargets();
-renderAlbums();
-renderCoverFlow();
-renderRotation();
-renderSpotifyStatus(spotifyStatus);
-
-if (state.lastPlayback) showPlayback(state.lastPlayback);
-
-if (spotifyStatus.connected) {
-  playbackMonitor = createPlaybackMonitor({
-    request,
-    onPlayback: showLivePlayback,
+async function startApp() {
+  state = await request("/api/state");
+  refreshDevicesButton.addEventListener("click", refreshDevices);
+  scanNfcButton.addEventListener("click", startNfcScan);
+  playbackToggleButton.addEventListener("click", togglePlayback);
+  playbackNextButton.addEventListener("click", skipNext);
+  document.querySelector("#coverflow-previous").addEventListener("click", () => moveCoverFlow(-1));
+  document.querySelector("#coverflow-next").addEventListener("click", () => moveCoverFlow(1));
+  coverflowPlayButton.addEventListener("click", () => scanAlbum(flowAlbums()[activeCoverIndex].id));
+  coverflowPairButton.addEventListener("click", () => pairAlbum(flowAlbums()[activeCoverIndex]));
+  rotationToggleButton.addEventListener("click", () => toggleAlbumInRotation(flowAlbums()[activeCoverIndex].id));
+  coverflowViewButton.addEventListener("click", () => setAlbumView("coverflow"));
+  rotationViewButton.addEventListener("click", () => setAlbumView("rotation"));
+  gridViewButton.addEventListener("click", () => setAlbumView("grid"));
+  rotationDuration.addEventListener("change", () => saveRotation());
+  rotationMode.addEventListener("change", () => saveRotation());
+  rotationPlayButton.addEventListener("click", playRotation);
+  coverflowElement.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      moveCoverFlow(event.key === "ArrowLeft" ? -1 : 1);
+    }
   });
-  await playbackMonitor.refresh();
+  coverflowStage.addEventListener("pointerdown", beginCoverFlowDrag);
+  coverflowStage.addEventListener("pointermove", updateCoverFlowDrag);
+  coverflowStage.addEventListener("pointerup", finishCoverFlowDrag);
+  coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
 
-  document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState !== "visible") return;
+  const spotifyStatus = await request("/api/spotify/status");
+  if (spotifyStatus.connected) {
     try {
-      await refreshDevices();
-      await playbackMonitor.refresh();
+      state = await refreshSpotifyOnLoad({ connected: true, request });
     } catch (error) {
       document.querySelector("#destination-status").textContent = error.message;
     }
-  });
+  }
+  rotation = await request("/api/rotation");
+
+  if ("NDEFReader" in globalThis) {
+    showNfcStatus("Ready. Start scanning, or pair a blank card to an album.");
+  } else {
+    scanNfcButton.disabled = true;
+    showNfcStatus("Web NFC is unavailable here. Use Chrome on an NFC-capable Android phone over HTTPS.");
+  }
+
+  renderTargets();
+  renderAlbums();
+  renderCoverFlow();
+  renderRotation();
+  renderSpotifyStatus(spotifyStatus);
+
+  if (state.lastPlayback) showPlayback(state.lastPlayback);
+
+  if (spotifyStatus.connected) {
+    playbackMonitor = createPlaybackMonitor({
+      request,
+      onPlayback: showLivePlayback,
+    });
+    await playbackMonitor.refresh();
+
+    document.addEventListener("visibilitychange", async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        await refreshDevices();
+        await playbackMonitor.refresh();
+      } catch (error) {
+        document.querySelector("#destination-status").textContent = error.message;
+      }
+    });
+  }
 }
+
+startApp().catch(showStartupFailure);

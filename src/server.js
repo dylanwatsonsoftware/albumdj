@@ -17,6 +17,7 @@ const assets = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
+  ["/startup.js", ["startup.js", "text/javascript; charset=utf-8"]],
   ["/nfc.js", ["nfc.js", "text/javascript; charset=utf-8"]],
   ["/spotify-sync.js", ["spotify-sync.js", "text/javascript; charset=utf-8"]],
   ["/live-playback.js", ["live-playback.js", "text/javascript; charset=utf-8"]],
