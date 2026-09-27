@@ -11,7 +11,14 @@ import {
   settleCoverFlowDrag,
 } from "./coverflow.js";
 import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
-import { filterAlbums, toggleFavouriteArtist } from "./discovery.js";
+import {
+  buildAutocompleteSuggestions,
+  filterAlbums,
+  getResultActions,
+  moveSuggestionIndex,
+  shouldRequestAutocomplete,
+  toggleFavouriteArtist,
+} from "./discovery.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -35,6 +42,7 @@ const rotationPlayButton = document.querySelector("#rotation-play");
 const rotationAlbumsElement = document.querySelector("#rotation-albums");
 const searchForm = document.querySelector("#album-search-form");
 const searchInput = document.querySelector("#album-search");
+const searchSuggestionsElement = document.querySelector("#search-suggestions");
 const discoveryResultsElement = document.querySelector("#discovery-results");
 const favouriteArtistsElement = document.querySelector("#favourite-artists");
 const favouriteArtistsStatus = document.querySelector("#favourite-artists-status");
@@ -50,6 +58,12 @@ let dragGesture = null;
 let suppressCoverClick = false;
 let renderedCoverIndexes = [];
 let favouriteArtists = [];
+let autocompleteSuggestions = [];
+let activeSuggestionIndex = -1;
+let autocompleteTimer = null;
+let autocompleteRequestNumber = 0;
+let cachedSearch = { query: "", results: null };
+let spotifyConnected = false;
 
 const COVER_SPACING = 105;
 const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
@@ -189,11 +203,6 @@ function flowAlbums() {
   return coverflowSource === "rotation" ? rotation.albums : visibleAlbums();
 }
 
-function artistFromAlbum(album) {
-  if (!album.artistId) return null;
-  return { id: album.artistId, name: album.artist.split(", ")[0], imageUrl: null, spotifyUrl: null };
-}
-
 function favouriteButton(artist) {
   const button = document.createElement("button");
   button.type = "button";
@@ -238,14 +247,14 @@ function albumResultCard(album) {
   copy.append(type, title, artist);
   const actions = document.createElement("div");
   actions.className = "discovery-actions";
-  const play = document.createElement("button");
-  play.type = "button";
-  play.className = "result-play";
-  play.textContent = "Play album";
-  play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
-  actions.append(play);
-  const albumArtist = artistFromAlbum(album);
-  if (albumArtist) actions.append(favouriteButton(albumArtist));
+  if (getResultActions("album").includes("play")) {
+    const play = document.createElement("button");
+    play.type = "button";
+    play.className = "result-play";
+    play.textContent = "Play album";
+    play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
+    actions.append(play);
+  }
   if (album.spotifyUrl) {
     const spotifyLink = document.createElement("a");
     spotifyLink.href = album.spotifyUrl;
@@ -279,12 +288,16 @@ function artistResultCard(artist) {
   copy.append(type, name);
   const actions = document.createElement("div");
   actions.className = "discovery-actions";
-  const releases = document.createElement("button");
-  releases.type = "button";
-  releases.className = "result-play";
-  releases.textContent = "View releases";
-  releases.addEventListener("click", () => showArtistReleases(artist, releases));
-  actions.append(releases, favouriteButton(artist));
+  const artistActions = getResultActions("artist");
+  if (artistActions.includes("releases")) {
+    const releases = document.createElement("button");
+    releases.type = "button";
+    releases.className = "result-play";
+    releases.textContent = "View releases";
+    releases.addEventListener("click", () => showArtistReleases(artist, releases));
+    actions.append(releases);
+  }
+  if (artistActions.includes("favourite")) actions.append(favouriteButton(artist));
   if (artist.spotifyUrl) {
     const spotifyLink = document.createElement("a");
     spotifyLink.href = artist.spotifyUrl;
@@ -302,7 +315,7 @@ function renderDiscoveryResults({ heading, albums = [], artists = [] }) {
   headingElement.textContent = heading;
   const list = document.createElement("div");
   list.className = "discovery-grid";
-  list.replaceChildren(...artists.map(artistResultCard), ...albums.map(albumResultCard));
+  list.replaceChildren(...albums.map(albumResultCard), ...artists.map(artistResultCard));
   if (!list.children.length) {
     const empty = document.createElement("p");
     empty.className = "discovery-empty";
@@ -352,15 +365,135 @@ function renderFavouriteArtists() {
   }));
 }
 
+function closeAutocomplete() {
+  clearTimeout(autocompleteTimer);
+  autocompleteSuggestions = [];
+  activeSuggestionIndex = -1;
+  searchSuggestionsElement.hidden = true;
+  searchSuggestionsElement.replaceChildren();
+  searchInput.setAttribute("aria-expanded", "false");
+  searchInput.removeAttribute("aria-activedescendant");
+}
+
+function renderAutocomplete() {
+  if (!autocompleteSuggestions.length) {
+    closeAutocomplete();
+    return;
+  }
+  searchSuggestionsElement.replaceChildren(...autocompleteSuggestions.map((suggestion, index) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "search-suggestion";
+    option.id = `search-suggestion-${index}`;
+    option.setAttribute("role", "option");
+    option.setAttribute("aria-selected", String(index === activeSuggestionIndex));
+    const artwork = document.createElement("span");
+    artwork.className = `suggestion-art ${suggestion.type === "artist" ? "artist" : ""}`;
+    if (suggestion.item.imageUrl) {
+      const image = document.createElement("img");
+      image.src = suggestion.item.imageUrl;
+      image.alt = "";
+      artwork.append(image);
+    }
+    const copy = document.createElement("span");
+    copy.className = "suggestion-copy";
+    const primary = document.createElement("strong");
+    primary.textContent = suggestion.primary;
+    const secondary = document.createElement("small");
+    secondary.textContent = suggestion.secondary;
+    copy.append(primary, secondary);
+    option.append(artwork, copy);
+    option.addEventListener("click", () => selectAutocompleteSuggestion(suggestion));
+    return option;
+  }));
+  searchSuggestionsElement.hidden = false;
+  searchInput.setAttribute("aria-expanded", "true");
+  if (activeSuggestionIndex >= 0) {
+    searchInput.setAttribute("aria-activedescendant", `search-suggestion-${activeSuggestionIndex}`);
+  } else {
+    searchInput.removeAttribute("aria-activedescendant");
+  }
+}
+
+function selectAutocompleteSuggestion(suggestion) {
+  searchInput.value = suggestion.primary;
+  activeCoverIndex = 0;
+  renderAlbums();
+  if (coverflowSource === "all") renderCoverFlow();
+  if (suggestion.type === "album") {
+    renderDiscoveryResults({ heading: "Album from Spotify", albums: [suggestion.item] });
+  } else {
+    renderDiscoveryResults({ heading: "Artist from Spotify", artists: [suggestion.item] });
+  }
+  closeAutocomplete();
+}
+
+async function loadAutocomplete(query, requestNumber) {
+  try {
+    const results = await request(`/api/spotify/search?q=${encodeURIComponent(query)}`);
+    if (requestNumber !== autocompleteRequestNumber || searchInput.value.trim() !== query) return;
+    cachedSearch = { query, results };
+    autocompleteSuggestions = buildAutocompleteSuggestions(results);
+    activeSuggestionIndex = -1;
+    renderAutocomplete();
+  } catch {
+    if (requestNumber === autocompleteRequestNumber) closeAutocomplete();
+  }
+}
+
+function scheduleAutocomplete() {
+  clearTimeout(autocompleteTimer);
+  const query = searchInput.value.trim();
+  autocompleteRequestNumber += 1;
+  if (!spotifyConnected || !shouldRequestAutocomplete(query)) {
+    closeAutocomplete();
+    return;
+  }
+  const requestNumber = autocompleteRequestNumber;
+  if (cachedSearch.query === query && cachedSearch.results) {
+    autocompleteSuggestions = buildAutocompleteSuggestions(cachedSearch.results);
+    activeSuggestionIndex = -1;
+    renderAutocomplete();
+    return;
+  }
+  autocompleteTimer = setTimeout(() => loadAutocomplete(query, requestNumber), 300);
+}
+
+function handleAutocompleteKeydown(event) {
+  if (event.key === "Escape") {
+    closeAutocomplete();
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Enter"].includes(event.key)) return;
+  if (!autocompleteSuggestions.length) return;
+  if (event.key === "Enter") {
+    if (activeSuggestionIndex < 0) return;
+    event.preventDefault();
+    selectAutocompleteSuggestion(autocompleteSuggestions[activeSuggestionIndex]);
+    return;
+  }
+  event.preventDefault();
+  activeSuggestionIndex = moveSuggestionIndex(
+    activeSuggestionIndex,
+    event.key === "ArrowDown" ? 1 : -1,
+    autocompleteSuggestions.length,
+  );
+  renderAutocomplete();
+}
+
 async function searchSpotify(event) {
   event.preventDefault();
   const query = searchInput.value.trim();
   if (!query) return;
+  closeAutocomplete();
   const button = searchForm.querySelector("button");
   button.disabled = true;
   button.textContent = "Searching…";
   try {
-    const results = await request(`/api/spotify/search?q=${encodeURIComponent(query)}`);
+    const results = cachedSearch.query === query && cachedSearch.results
+      ? cachedSearch.results
+      : await request(`/api/spotify/search?q=${encodeURIComponent(query)}`);
+    cachedSearch = { query, results };
     renderDiscoveryResults({ heading: `Spotify results for “${query}”`, ...results });
   } catch (error) {
     renderDiscoveryResults({ heading: error.message });
@@ -791,6 +924,12 @@ async function startApp() {
     activeCoverIndex = 0;
     renderAlbums();
     if (coverflowSource === "all") renderCoverFlow();
+    scheduleAutocomplete();
+  });
+  searchInput.addEventListener("keydown", handleAutocompleteKeydown);
+  searchInput.addEventListener("focus", scheduleAutocomplete);
+  document.addEventListener("click", (event) => {
+    if (!searchForm.contains(event.target)) closeAutocomplete();
   });
   refreshDevicesButton.addEventListener("click", refreshDevices);
   scanNfcButton.addEventListener("click", startNfcScan);
@@ -819,6 +958,7 @@ async function startApp() {
   coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
 
   const spotifyStatus = await request("/api/spotify/status");
+  spotifyConnected = spotifyStatus.connected;
   if (spotifyStatus.connected) {
     try {
       state = await refreshSpotifyOnLoad({ connected: true, request });

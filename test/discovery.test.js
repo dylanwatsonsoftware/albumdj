@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { filterAlbums, toggleFavouriteArtist } from "../public/discovery.js";
+import {
+  buildAutocompleteSuggestions,
+  filterAlbums,
+  getResultActions,
+  moveSuggestionIndex,
+  shouldRequestAutocomplete,
+  toggleFavouriteArtist,
+} from "../public/discovery.js";
 
 const albums = [
   { id: "blue", title: "Blue", artist: "Joni Mitchell" },
@@ -19,4 +26,32 @@ test("adds and removes a favourite artist without duplicates", () => {
   const joni = { id: "joni", name: "Joni Mitchell", imageUrl: null, spotifyUrl: "https://open.spotify.com/artist/joni" };
   assert.deepEqual(toggleFavouriteArtist([], joni), [joni]);
   assert.deepEqual(toggleFavouriteArtist([joni], joni), []);
+});
+
+test("builds clearly typed album and artist autocomplete suggestions", () => {
+  const suggestions = buildAutocompleteSuggestions({
+    albums: [{ id: "blue", title: "Blue", artist: "Joni Mitchell" }],
+    artists: [{ id: "joni", name: "Joni Mitchell" }],
+  });
+
+  assert.deepEqual(suggestions.map(({ type, primary, secondary }) => ({ type, primary, secondary })), [
+    { type: "album", primary: "Blue", secondary: "Album · Joni Mitchell" },
+    { type: "artist", primary: "Joni Mitchell", secondary: "Artist" },
+  ]);
+});
+
+test("only autocompletes meaningful queries", () => {
+  assert.equal(shouldRequestAutocomplete("j"), false);
+  assert.equal(shouldRequestAutocomplete("  jo  "), true);
+});
+
+test("moves through autocomplete suggestions without leaving the list", () => {
+  assert.equal(moveSuggestionIndex(-1, 1, 3), 0);
+  assert.equal(moveSuggestionIndex(2, 1, 3), 0);
+  assert.equal(moveSuggestionIndex(0, -1, 3), 2);
+});
+
+test("album results play albums while only artist results offer favourites", () => {
+  assert.deepEqual(getResultActions("album"), ["play"]);
+  assert.deepEqual(getResultActions("artist"), ["releases", "favourite"]);
 });
