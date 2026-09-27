@@ -29,7 +29,15 @@ export function createBrowserSessions({ secret, randomUUID = secureRandomUUID, s
     return sessionId;
   }
 
+  function issue(sessionId) {
+    return `${sessionId}.${signature(sessionId)}`;
+  }
+
   return {
+    issue,
+    verify(value) {
+      return valid(value);
+    },
     resolve(cookieHeader) {
       const sessionId = valid(parseCookies(cookieHeader).get(COOKIE_NAME));
       if (sessionId) return { sessionId, setCookie: null };
@@ -38,7 +46,7 @@ export function createBrowserSessions({ secret, randomUUID = secureRandomUUID, s
       const secureAttribute = secure ? "; Secure" : "";
       return {
         sessionId: nextSessionId,
-        setCookie: `${COOKIE_NAME}=${nextSessionId}.${signature(nextSessionId)}; Path=/; HttpOnly${secureAttribute}; SameSite=Lax; Max-Age=${MAX_AGE_SECONDS}`,
+        setCookie: `${COOKIE_NAME}=${issue(nextSessionId)}; Path=/; HttpOnly${secureAttribute}; SameSite=Lax; Max-Age=${MAX_AGE_SECONDS}`,
       };
     },
   };

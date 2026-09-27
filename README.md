@@ -59,7 +59,7 @@ The tests cover destination selection, Spotify authorization and playback, serve
 
 ## Android and Android Auto prototype
 
-The [`android`](android/) module contains the first native app shell and a Media3 library service that Android Auto can browse. It currently uses a small fixture stack so the car content structure can be tested before Spotify login, Firebase sync, and NFC are connected. Build and Desktop Head Unit instructions are in [`android/README.md`](android/README.md).
+The [`android`](android/) module contains a native app and Media3 library service that Android Auto can browse. A verified browser handoff connects it to the same Spotify session and Firebase-backed account as the web app; it syncs the current stack, favourite albums, and recent releases, can start an album through the existing playback API, and includes an on-phone car preview. Build and Desktop Head Unit instructions are in [`android/README.md`](android/README.md).
 
 ## How it fits together
 

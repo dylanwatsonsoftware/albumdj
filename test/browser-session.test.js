@@ -36,3 +36,12 @@ test("accepts a valid cookie and rejects a tampered session id", () => {
   assert.notEqual(replaced.sessionId, "33333333-2222-4222-8222-222222222222");
   assert.ok(replaced.setCookie);
 });
+
+test("issues and verifies a signed token for a native client", () => {
+  const sessions = createBrowserSessions({ secret: "a sufficiently long test secret" });
+
+  const token = sessions.issue("browser-1");
+
+  assert.equal(sessions.verify(token), "browser-1");
+  assert.equal(sessions.verify(`${token}tampered`), null);
+});

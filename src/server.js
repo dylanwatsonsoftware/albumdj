@@ -26,11 +26,16 @@ const assets = new Map([
   ["/rotation.js", ["rotation.js", "text/javascript; charset=utf-8"]],
   ["/discovery.js", ["discovery.js", "text/javascript; charset=utf-8"]],
   ["/navigation.js", ["navigation.js", "text/javascript; charset=utf-8"]],
+  ["/.well-known/assetlinks.json", [".well-known/assetlinks.json", "application/json; charset=utf-8"]],
 ]);
 
 function sendJson(response, status, value) {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(value));
+}
+
+function hasCookie(request, name, value) {
+  return (request.headers.cookie ?? "").split(";").some((part) => part.trim() === `${name}=${value}`);
 }
 
 async function readJson(request) {
@@ -97,7 +102,20 @@ export function createPrototypeHandler(options = {}) {
         persistFavouriteArtists = async () => {},
         favouriteAlbums = [],
         persistFavouriteAlbums = async () => {},
+        sessionToken = null,
       } = context;
+
+      if (request.method === "GET" && url.pathname === "/api/mobile/connect") {
+        if (!spotify.status().connected) {
+          response.writeHead(302, { location: "/api/auth/spotify?mobile=1" });
+          return response.end();
+        }
+        if (!sessionToken) throw new Error("Native sign-in is unavailable in this environment");
+        const callback = new URL("https://albumdj.vercel.app/mobile/callback");
+        callback.hash = new URLSearchParams({ token: sessionToken }).toString();
+        response.writeHead(302, { location: callback.toString() });
+        return response.end();
+      }
 
       if (request.method === "GET" && url.pathname === "/api/state") {
         return sendJson(response, 200, player.snapshot());
@@ -250,6 +268,9 @@ export function createPrototypeHandler(options = {}) {
       }
 
       if (request.method === "GET" && ["/auth/spotify", "/api/auth/spotify"].includes(url.pathname)) {
+        if (url.searchParams.get("mobile") === "1") {
+          response.setHeader("set-cookie", "pf_mobile_return=1; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600");
+        }
         response.writeHead(302, { location: await spotify.beginAuthorization() });
         return response.end();
       }
@@ -265,7 +286,11 @@ export function createPrototypeHandler(options = {}) {
         player.replaceAlbums(await spotify.getSavedAlbums());
         player.replaceTargets(await spotify.getAvailableDevices());
         await persistPlayer();
-        response.writeHead(302, { location: "/?spotify=connected" });
+        const mobileReturn = hasCookie(request, "pf_mobile_return", "1");
+        if (mobileReturn) {
+          response.setHeader("set-cookie", "pf_mobile_return=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");
+        }
+        response.writeHead(302, { location: mobileReturn ? "/api/mobile/connect" : "/?spotify=connected" });
         return response.end();
       }
 

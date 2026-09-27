@@ -241,6 +241,62 @@ test("redirects through Spotify authorization and completes the callback", async
   }, { spotify });
 });
 
+test("hands a connected browser session to the Android app", async () => {
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { id: "listener", displayName: "Listener" } }),
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/mobile/connect`, { redirect: "manual" });
+
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "https://albumdj.vercel.app/mobile/callback#token=signed-native-session");
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      sessionToken: "signed-native-session",
+    }),
+  });
+});
+
+test("serves Android App Link verification for the debug prototype", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/.well-known/assetlinks.json`);
+    const links = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(links[0].target.package_name, "com.dylanwatson.albumdj");
+    assert.match(links[0].target.sha256_cert_fingerprints[0], /^BF:19:F1:F8:/);
+  });
+});
+
+test("sends a disconnected Android app through Spotify then back to the app handoff", async () => {
+  const spotify = {
+    status: () => ({ configured: true, connected: false, profile: null }),
+    beginAuthorization: () => "https://accounts.spotify.test/authorize",
+    completeAuthorization: async () => {},
+    getSavedAlbums: async () => [],
+    getAvailableDevices: async () => [{ id: "phone", name: "Phone", kind: "smartphone" }],
+  };
+
+  await withServer(async (baseUrl) => {
+    const connect = await fetch(`${baseUrl}/api/mobile/connect`, { redirect: "manual" });
+    assert.equal(connect.headers.get("location"), "/api/auth/spotify?mobile=1");
+
+    const login = await fetch(`${baseUrl}/api/auth/spotify?mobile=1`, { redirect: "manual" });
+    assert.match(login.headers.get("set-cookie"), /pf_mobile_return=1/);
+
+    const complete = await fetch(`${baseUrl}/api/auth/spotify/callback?code=code&state=state`, {
+      redirect: "manual",
+      headers: { cookie: "pf_mobile_return=1" },
+    });
+    assert.equal(complete.headers.get("location"), "/api/mobile/connect");
+    assert.match(complete.headers.get("set-cookie"), /Max-Age=0/);
+  }, { spotify });
+});
+
 test("refreshes Spotify devices and starts the scanned album on the selected device", async () => {
   let playCommand;
   const devices = [{ id: "desktop-1", name: "Desktop", kind: "computer", isActive: true }];

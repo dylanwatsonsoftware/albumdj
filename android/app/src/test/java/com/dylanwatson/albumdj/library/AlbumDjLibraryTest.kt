@@ -10,6 +10,8 @@ class AlbumDjLibraryTest {
             Album("discovery", "Discovery", "Daft Punk"),
             Album("currents", "Currents", "Tame Impala"),
         ),
+        favourites = listOf(Album("blue", "Blue", "Joni Mitchell")),
+        recent = listOf(Album("cutouts", "Cutouts", "The Smile")),
     )
 
     @Test
@@ -34,5 +36,11 @@ class AlbumDjLibraryTest {
     @Test
     fun `unknown collection is empty`() {
         assertTrue(library.children("missing").isEmpty())
+    }
+
+    @Test
+    fun `favourites and releases expose their real albums`() {
+        assertEquals(listOf("Blue"), library.children(AlbumDjLibrary.FAVOURITES_ID).map { it.title })
+        assertEquals(listOf("Cutouts"), library.children(AlbumDjLibrary.RECENT_ID).map { it.title })
     }
 }

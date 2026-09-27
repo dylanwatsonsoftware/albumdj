@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.dylanwatson.albumdj",
+      "sha256_cert_fingerprints": [
+        "BF:19:F1:F8:84:42:69:A5:B5:E7:9C:43:A8:5E:B8:9F:60:E2:79:CF:A1:69:13:BE:2B:8C:67:9A:1D:89:5E:FC"
+      ]
+    }
+  }
+]

@@ -4,6 +4,7 @@ data class Album(
     val id: String,
     val title: String,
     val artist: String,
+    val imageUrl: String? = null,
 )
 
 data class LibraryNode(
@@ -12,10 +13,13 @@ data class LibraryNode(
     val subtitle: String? = null,
     val browsable: Boolean = false,
     val playable: Boolean = false,
+    val imageUrl: String? = null,
 )
 
 class AlbumDjLibrary(
     private val stack: List<Album>,
+    private val favourites: List<Album> = emptyList(),
+    private val recent: List<Album> = emptyList(),
 ) {
     fun children(parentId: String): List<LibraryNode> = when (parentId) {
         ROOT_ID -> listOf(
@@ -24,17 +28,22 @@ class AlbumDjLibrary(
             LibraryNode(RECENT_ID, "Recent Releases", browsable = true),
         )
 
-        STACK_ID -> stack.map { album ->
+        STACK_ID -> stack.asNodes()
+        FAVOURITES_ID -> favourites.asNodes()
+        RECENT_ID -> recent.asNodes()
+
+        else -> emptyList()
+    }
+
+    private fun List<Album>.asNodes() = map { album ->
             LibraryNode(
                 id = "album:${album.id}",
                 title = album.title,
                 subtitle = album.artist,
                 playable = true,
+                imageUrl = album.imageUrl,
             )
         }
-
-        else -> emptyList()
-    }
 
     companion object {
         const val ROOT_ID = "album-dj-root"

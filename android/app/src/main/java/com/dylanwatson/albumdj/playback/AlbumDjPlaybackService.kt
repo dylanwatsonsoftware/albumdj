@@ -8,6 +8,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
+import com.dylanwatson.albumdj.data.AlbumDjCache
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -15,7 +16,8 @@ import com.google.common.util.concurrent.ListenableFuture
 class AlbumDjPlaybackService : MediaLibraryService() {
     private lateinit var player: ExoPlayer
     private lateinit var session: MediaLibrarySession
-    private val library = AlbumDjLibrary.demo()
+    private fun library() = runCatching { AlbumDjCache(this).load()?.account?.library }
+        .getOrNull() ?: AlbumDjLibrary.demo()
 
     override fun onCreate() {
         super.onCreate()
@@ -61,9 +63,10 @@ class AlbumDjPlaybackService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
-            val from = (page * pageSize).coerceAtMost(library.children(parentId).size)
-            val to = (from + pageSize).coerceAtMost(library.children(parentId).size)
-            val items = library.children(parentId).subList(from, to).map(LibraryNode::asMediaItem)
+            val children = library().children(parentId)
+            val from = (page * pageSize).coerceAtMost(children.size)
+            val to = (from + pageSize).coerceAtMost(children.size)
+            val items = children.subList(from, to).map(LibraryNode::asMediaItem)
             return Futures.immediateFuture(LibraryResult.ofItemList(items, params))
         }
     }

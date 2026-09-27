@@ -1,8 +1,10 @@
 # Album DJ for Android
 
-This is the first native Album DJ and Android Auto prototype. The phone app previews a fixture Current Stack, while a Media3 `MediaLibraryService` exposes Current Stack, Favourite Albums, and Recent Releases to Android Auto.
+This native Album DJ prototype connects to the hosted web app through a verified browser sign-in. It loads the signed-in Spotify account's Current Stack, Favourite Albums, and Recent Releases from the existing Firebase-backed API. Tapping a stack cover sends playback to the Spotify Connect destination selected in Album DJ.
 
-The prototype intentionally does not authenticate with Spotify or Firebase yet. Its next milestone is to replace the fixture library with the signed-in user's Firestore library and resolve album selections through Spotify playback.
+The **Car preview** button renders the same browse hierarchy used by the Media3 `MediaLibraryService`, so the car experience can be explored without connecting to Android Auto. The most recently synced library is cached for Android Auto browsing.
+
+The APK contains neither the Firebase service-account key nor Spotify access tokens. Browser authentication hands it a signed Album DJ session, which is encrypted at rest with an Android Keystore key. The debug build's signing certificate is registered in `public/.well-known/assetlinks.json`; replace that fingerprint with the release or Play App Signing certificate before distributing a release build.
 
 ## Build and test
 
