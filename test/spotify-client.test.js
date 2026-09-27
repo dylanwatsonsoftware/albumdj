@@ -289,6 +289,55 @@ test("waits for Spotify's Retry-After delay before retrying a rate-limited reque
   assert.deepEqual(waits, [2_000]);
 });
 
+test("fails fast when Spotify asks the server to wait beyond its request budget", async () => {
+  let attempts = 0;
+  const waits = [];
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    maxRetryDelayMs: 5_000,
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    fetchImpl: async () => {
+      attempts += 1;
+      return Response.json(
+        { error: { status: 429, message: "Too many requests" } },
+        { status: 429, headers: { "retry-after": "30" } },
+      );
+    },
+  });
+
+  await assert.rejects(
+    spotify.getAlbum("album-1"),
+    /Spotify is busy\. Try again in 30 seconds/,
+  );
+  assert.equal(attempts, 1);
+  assert.deepEqual(waits, []);
+});
+
+test("aborts a Spotify request before the serverless request can time out", async () => {
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    requestTimeoutMs: 5,
+    fetchImpl: async (_url, { signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    }),
+  });
+
+  await assert.rejects(
+    spotify.getAlbum("album-1"),
+    /Spotify request timed out/,
+  );
+});
+
 test("does not immediately retry a 429 without a Retry-After delay", async () => {
   let attempts = 0;
   const spotify = createSpotifyClient({

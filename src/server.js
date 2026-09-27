@@ -38,6 +38,27 @@ function hasCookie(request, name, value) {
   return (request.headers.cookie ?? "").split(";").some((part) => part.trim() === `${name}=${value}`);
 }
 
+async function mapSettledWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: "fulfilled", value: await mapper(items[index], index) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 async function readJson(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
@@ -136,11 +157,19 @@ export function createPrototypeHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/spotify/favourite-artists/releases") {
-        const releasesByArtist = [];
-        for (const { id } of favouriteArtists) {
-          releasesByArtist.push(await spotify.getRecentArtistAlbums(id));
+        const results = await mapSettledWithConcurrency(
+          favouriteArtists,
+          2,
+          ({ id }) => spotify.getRecentArtistAlbums(id),
+        );
+        const successful = results.filter(({ status }) => status === "fulfilled");
+        if (!successful.length && results.length) {
+          throw results.find(({ status }) => status === "rejected").reason;
         }
-        return sendJson(response, 200, selectRecentFavouriteAlbums(releasesByArtist.flat(), { now: now() }));
+        return sendJson(response, 200, selectRecentFavouriteAlbums(
+          successful.flatMap(({ value }) => value),
+          { now: now() },
+        ));
       }
 
       const artistAlbumsMatch = url.pathname.match(/^\/api\/spotify\/artists\/([^/]+)\/albums$/);

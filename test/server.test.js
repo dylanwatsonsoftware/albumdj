@@ -167,7 +167,7 @@ test("plays an album found through Spotify search on the selected device", async
   }, { spotify });
 });
 
-test("showcases recent albums from favourite artists", async () => {
+test("showcases recent albums from favourite artists with bounded concurrency", async () => {
   let activeRequests = 0;
   let maximumConcurrentRequests = 0;
   const spotify = {
@@ -176,7 +176,7 @@ test("showcases recent albums from favourite artists", async () => {
     getRecentArtistAlbums: async (artistId) => {
       activeRequests += 1;
       maximumConcurrentRequests = Math.max(maximumConcurrentRequests, activeRequests);
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 5));
       activeRequests -= 1;
       return [
         { id: `${artistId}-new`, title: "New Album", albumType: "album", releaseDate: "2026-06-01" },
@@ -188,14 +188,38 @@ test("showcases recent albums from favourite artists", async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/spotify/favourite-artists/releases`);
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).map(({ id }) => id), ["joni-new", "coltrane-new"]);
-    assert.equal(maximumConcurrentRequests, 1);
+    assert.deepEqual((await response.json()).map(({ id }) => id), ["joni-new", "coltrane-new", "mingus-new"]);
+    assert.equal(maximumConcurrentRequests, 2);
   }, {
     contextProvider: async () => ({
       player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
       spotify,
       rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
-      favouriteArtists: [{ id: "joni" }, { id: "coltrane" }],
+      favouriteArtists: [{ id: "joni" }, { id: "coltrane" }, { id: "mingus" }],
+    }),
+    now: () => new Date("2026-09-27T12:00:00Z").getTime(),
+  });
+});
+
+test("keeps successful recent releases when one favourite artist request fails", async () => {
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getRecentArtistAlbums: async (artistId) => {
+      if (artistId === "unavailable") throw new Error("Spotify API request failed (429)");
+      return [{ id: `${artistId}-new`, title: "New Album", albumType: "album", releaseDate: "2026-06-01" }];
+    },
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/favourite-artists/releases`);
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).map(({ id }) => id), ["joni-new"]);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      favouriteArtists: [{ id: "unavailable" }, { id: "joni" }],
     }),
     now: () => new Date("2026-09-27T12:00:00Z").getTime(),
   });

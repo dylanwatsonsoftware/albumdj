@@ -40,6 +40,8 @@ export function createSpotifyClient({
   randomBytes = secureRandomBytes,
   now = Date.now,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  maxRetryDelayMs = 5_000,
+  requestTimeoutMs = 8_000,
   sessionStore = { load: () => null, save: () => {} },
   initialSession,
 }) {
@@ -81,9 +83,20 @@ export function createSpotifyClient({
     const accessToken = await ensureAccessToken();
     const url = path.startsWith("https://") ? path : `https://api.spotify.com/v1${path}`;
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const response = await fetchImpl(url, {
-        headers: { authorization: `Bearer ${accessToken}` },
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+      let response;
+      try {
+        response = await fetchImpl(url, {
+          headers: { authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) throw new Error("Spotify request timed out");
+        throw error;
+      } finally {
+        clearTimeout(timeout);
+      }
       if (response.ok) return response.json();
 
       const retryAfterHeader = response.headers.get("retry-after");
@@ -94,7 +107,12 @@ export function createSpotifyClient({
         && retryAfterHeader !== null
         && Number.isFinite(retryAfterSeconds)
       ) {
-        await sleep(Math.max(0, retryAfterSeconds) * 1_000);
+        const retryDelayMs = Math.max(0, retryAfterSeconds) * 1_000;
+        if (retryDelayMs > maxRetryDelayMs) {
+          const seconds = Math.ceil(retryDelayMs / 1_000);
+          throw new Error(`Spotify is busy. Try again in ${seconds} seconds`);
+        }
+        await sleep(retryDelayMs);
         continue;
       }
       throw new Error(`Spotify API request failed (${response.status})`);
