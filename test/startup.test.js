@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { loadStartupPreferences, parseApiResponse, startupFailureMessage } from "../public/startup.js";
+import {
+  loadStartupPreferences,
+  parseApiResponse,
+  readUiCache,
+  startupFailureMessage,
+  writeUiCache,
+} from "../public/startup.js";
 
 test("reports a useful error when Vercel returns a plain-text server failure", async () => {
   const response = new Response("A server error has occurred", {
@@ -43,4 +49,30 @@ test("loads independent account preferences concurrently", async () => {
     favouriteArtists: [{ id: "artist-1" }],
     favouriteAlbums: [{ id: "album-1" }],
   });
+});
+
+test("persists safe UI data for an immediate reload without storing Spotify credentials", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  };
+  const snapshot = {
+    state: { albums: [{ id: "blue" }], targets: [{ id: "speaker" }] },
+    rotation: { albumIds: ["blue"] },
+    favouriteArtists: [{ id: "joni" }],
+    favouriteAlbums: [{ id: "blue" }],
+    recentFavouriteAlbums: [{ id: "new" }],
+    artistAlbums: { joni: [{ id: "blue" }] },
+  };
+
+  writeUiCache(storage, snapshot);
+
+  assert.deepEqual(readUiCache(storage), snapshot);
+  assert.doesNotMatch([...values.values()].join(""), /accessToken|refreshToken/);
+});
+
+test("ignores an invalid or outdated UI cache", () => {
+  assert.equal(readUiCache({ getItem: () => "not json" }), null);
+  assert.equal(readUiCache({ getItem: () => JSON.stringify({ version: 0, data: {} }) }), null);
 });

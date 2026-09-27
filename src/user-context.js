@@ -43,6 +43,10 @@ export function createUserContextProvider({
     });
     const favouriteArtists = structuredClone(user?.favouriteArtists ?? []);
     const favouriteAlbums = structuredClone(user?.favouriteAlbums ?? []);
+    const spotifyCatalogCache = structuredClone(user?.spotifyCatalogCache ?? {
+      artistAlbums: {},
+      recentArtistAlbums: {},
+    });
     const preferenceOwner = { sessionId, spotifyUserId: user?.spotifyUserId ?? null };
 
     return {
@@ -51,10 +55,12 @@ export function createUserContextProvider({
       rotation,
       favouriteArtists,
       favouriteAlbums,
+      spotifyCatalogCache,
       persistPlayer: () => userStore.savePlayerState(preferenceOwner, player.snapshot()),
       persistRotation: () => userStore.saveRotation(preferenceOwner, rotation.snapshot()),
       persistFavouriteArtists: () => userStore.saveFavouriteArtists(preferenceOwner, favouriteArtists),
       persistFavouriteAlbums: () => userStore.saveFavouriteAlbums(preferenceOwner, favouriteAlbums),
+      persistSpotifyCatalogCache: () => userStore.saveSpotifyCatalogCache(preferenceOwner, spotifyCatalogCache),
     };
   };
 }

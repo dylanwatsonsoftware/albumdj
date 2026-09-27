@@ -1,3 +1,23 @@
+const UI_CACHE_KEY = "albumdj:ui-cache";
+const UI_CACHE_VERSION = 1;
+
+export function readUiCache(storage) {
+  try {
+    const cached = JSON.parse(storage.getItem(UI_CACHE_KEY));
+    return cached?.version === UI_CACHE_VERSION ? cached.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeUiCache(storage, data) {
+  try {
+    storage.setItem(UI_CACHE_KEY, JSON.stringify({ version: UI_CACHE_VERSION, data }));
+  } catch {
+    // Storage can be unavailable in private browsing; the live app remains usable.
+  }
+}
+
 export async function parseApiResponse(response) {
   if (response.status === 204) return null;
 

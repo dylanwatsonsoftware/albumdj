@@ -13,6 +13,7 @@ import { selectRecentFavouriteAlbums } from "./recent-releases.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = join(here, "..", "public");
+const SPOTIFY_CATALOG_CACHE_TTL = 24 * 60 * 60 * 1_000;
 
 const assets = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
@@ -36,6 +37,21 @@ function sendJson(response, status, value) {
 
 function hasCookie(request, name, value) {
   return (request.headers.cookie ?? "").split(";").some((part) => part.trim() === `${name}=${value}`);
+}
+
+function catalogueCooldownError(cache, timestamp) {
+  if (!cache.retryAfterUntil || cache.retryAfterUntil <= timestamp) return null;
+  const seconds = Math.ceil((cache.retryAfterUntil - timestamp) / 1_000);
+  return new Error(`Spotify is busy. Try again in ${seconds} seconds`);
+}
+
+function recordCatalogueCooldown(cache, error, timestamp) {
+  if (!Number.isFinite(error?.retryAfterSeconds)) return false;
+  cache.retryAfterUntil = Math.max(
+    cache.retryAfterUntil ?? 0,
+    timestamp + error.retryAfterSeconds * 1_000,
+  );
+  return true;
 }
 
 async function mapSettledWithConcurrency(items, concurrency, mapper) {
@@ -123,6 +139,8 @@ export function createPrototypeHandler(options = {}) {
         persistFavouriteArtists = async () => {},
         favouriteAlbums = [],
         persistFavouriteAlbums = async () => {},
+        spotifyCatalogCache = { artistAlbums: {}, recentArtistAlbums: {} },
+        persistSpotifyCatalogCache = async () => {},
         sessionToken = null,
       } = context;
 
@@ -157,11 +175,31 @@ export function createPrototypeHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/spotify/favourite-artists/releases") {
+        spotifyCatalogCache.recentArtistAlbums ??= {};
+        let cacheChanged = false;
         const results = await mapSettledWithConcurrency(
           favouriteArtists,
           2,
-          ({ id }) => spotify.getRecentArtistAlbums(id),
+          async ({ id }) => {
+            const cached = spotifyCatalogCache.recentArtistAlbums[id];
+            if (cached && now() - cached.updatedAt < SPOTIFY_CATALOG_CACHE_TTL) return cached.albums;
+            try {
+              const cooldown = catalogueCooldownError(spotifyCatalogCache, now());
+              if (cooldown) throw cooldown;
+              const artistAlbums = await spotify.getRecentArtistAlbums(id);
+              spotifyCatalogCache.recentArtistAlbums[id] = { albums: artistAlbums, updatedAt: now() };
+              cacheChanged = true;
+              return artistAlbums;
+            } catch (error) {
+              cacheChanged ||= recordCatalogueCooldown(spotifyCatalogCache, error, now());
+              if (cached) return cached.albums;
+              const savedAlbums = player.snapshot().albums.filter((album) => album.artistId === id);
+              if (savedAlbums.length) return savedAlbums;
+              throw error;
+            }
+          },
         );
+        if (cacheChanged) await persistSpotifyCatalogCache();
         const successful = results.filter(({ status }) => status === "fulfilled");
         if (!successful.length && results.length) {
           throw results.find(({ status }) => status === "rejected").reason;
@@ -174,7 +212,28 @@ export function createPrototypeHandler(options = {}) {
 
       const artistAlbumsMatch = url.pathname.match(/^\/api\/spotify\/artists\/([^/]+)\/albums$/);
       if (request.method === "GET" && artistAlbumsMatch) {
-        return sendJson(response, 200, await spotify.getArtistAlbums(decodeURIComponent(artistAlbumsMatch[1])));
+        const artistId = decodeURIComponent(artistAlbumsMatch[1]);
+        spotifyCatalogCache.artistAlbums ??= {};
+        const cached = spotifyCatalogCache.artistAlbums[artistId];
+        if (cached && now() - cached.updatedAt < SPOTIFY_CATALOG_CACHE_TTL) {
+          return sendJson(response, 200, cached.albums);
+        }
+        try {
+          const cooldown = catalogueCooldownError(spotifyCatalogCache, now());
+          if (cooldown) throw cooldown;
+          const artistAlbums = await spotify.getArtistAlbums(artistId);
+          spotifyCatalogCache.artistAlbums[artistId] = { albums: artistAlbums, updatedAt: now() };
+          await persistSpotifyCatalogCache();
+          return sendJson(response, 200, artistAlbums);
+        } catch (error) {
+          if (recordCatalogueCooldown(spotifyCatalogCache, error, now())) {
+            await persistSpotifyCatalogCache();
+          }
+          if (cached) return sendJson(response, 200, cached.albums);
+          const savedAlbums = player.snapshot().albums.filter((album) => album.artistId === artistId);
+          if (savedAlbums.length) return sendJson(response, 200, savedAlbums);
+          throw error;
+        }
       }
 
       if (request.method === "GET" && url.pathname === "/api/favourite-artists") {

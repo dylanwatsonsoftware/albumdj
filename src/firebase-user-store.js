@@ -72,5 +72,6 @@ export function createFirebaseUserStore({ firestore }) {
     saveRotation: (owner, value) => saveField(owner, "rotation", value),
     saveFavouriteArtists: (owner, value) => saveField(owner, "favouriteArtists", value),
     saveFavouriteAlbums: (owner, value) => saveField(owner, "favouriteAlbums", value),
+    saveSpotifyCatalogCache: (owner, value) => saveField(owner, "spotifyCatalogCache", value),
   };
 }

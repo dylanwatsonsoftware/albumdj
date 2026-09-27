@@ -64,6 +64,7 @@ test("loads shared preferences by verified Spotify account while keeping tokens 
       "spotify-user": {
         favouriteArtists: [{ id: "artist-one", name: "Artist One" }],
         favouriteAlbums: [{ id: "album-one", title: "Album One" }],
+        spotifyCatalogCache: { artistAlbums: { "artist-one": { albums: [{ id: "album-one" }] } } },
       },
     },
   });
@@ -77,6 +78,7 @@ test("loads shared preferences by verified Spotify account while keeping tokens 
   assert.equal(first.spotifyUserId, "spotify-user");
   assert.deepEqual(first.favouriteAlbums, second.favouriteAlbums);
   assert.deepEqual(first.favouriteArtists, second.favouriteArtists);
+  assert.deepEqual(first.spotifyCatalogCache, second.spotifyCatalogCache);
 });
 
 test("migrates existing browser preferences into the Spotify account record", async () => {
@@ -191,6 +193,7 @@ test("merges only the requested session field", async () => {
   await store.saveRotation("session-one", { albumIds: ["album-one"] });
   await store.saveFavouriteArtists("session-one", [{ id: "artist-one", name: "Artist One" }]);
   await store.saveFavouriteAlbums("session-one", [{ id: "album-one", title: "Album One" }]);
+  await store.saveSpotifyCatalogCache("session-one", { artistAlbums: { "artist-one": { albums: [] } } });
 
   assert.deepEqual(firestore.writes, [
     { sessionId: "session-one", value: { spotifySession: { token: "secret" } }, options: { merge: true } },
@@ -198,5 +201,6 @@ test("merges only the requested session field", async () => {
     { sessionId: "session-one", value: { rotation: { albumIds: ["album-one"] } }, options: { merge: true } },
     { sessionId: "session-one", value: { favouriteArtists: [{ id: "artist-one", name: "Artist One" }] }, options: { merge: true } },
     { sessionId: "session-one", value: { favouriteAlbums: [{ id: "album-one", title: "Album One" }] }, options: { merge: true } },
+    { sessionId: "session-one", value: { spotifyCatalogCache: { artistAlbums: { "artist-one": { albums: [] } } } }, options: { merge: true } },
   ]);
 });

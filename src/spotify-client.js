@@ -110,7 +110,9 @@ export function createSpotifyClient({
         const retryDelayMs = Math.max(0, retryAfterSeconds) * 1_000;
         if (retryDelayMs > maxRetryDelayMs) {
           const seconds = Math.ceil(retryDelayMs / 1_000);
-          throw new Error(`Spotify is busy. Try again in ${seconds} seconds`);
+          const error = new Error(`Spotify is busy. Try again in ${seconds} seconds`);
+          error.retryAfterSeconds = seconds;
+          throw error;
         }
         await sleep(retryDelayMs);
         continue;

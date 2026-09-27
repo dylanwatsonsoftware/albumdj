@@ -225,6 +225,86 @@ test("keeps successful recent releases when one favourite artist request fails",
   });
 });
 
+test("serves cached artist albums without calling Spotify again", async () => {
+  let spotifyCalls = 0;
+  const cachedAlbums = [{ id: "blue", title: "Blue", artistId: "joni", releaseDate: "1971-06-22" }];
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getArtistAlbums: async () => { spotifyCalls += 1; return []; },
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/artists/joni/albums`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), cachedAlbums);
+    assert.equal(spotifyCalls, 0);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      spotifyCatalogCache: {
+        artistAlbums: { joni: { albums: cachedAlbums, updatedAt: 100_000 } },
+        recentArtistAlbums: {},
+      },
+    }),
+    now: () => 100_100,
+  });
+});
+
+test("falls back to stale cached discography when Spotify is rate limited", async () => {
+  const cachedAlbums = [{ id: "tea", title: "Tea & Sympathy", artistId: "bernard" }];
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getArtistAlbums: async () => { throw new Error("Spotify is busy. Try again in 74000 seconds"); },
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/artists/bernard/albums`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), cachedAlbums);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      spotifyCatalogCache: {
+        artistAlbums: { bernard: { albums: cachedAlbums, updatedAt: 1 } },
+        recentArtistAlbums: {},
+      },
+    }),
+    now: () => 200_000_000,
+  });
+});
+
+test("does not call Spotify again while a catalogue rate limit is active", async () => {
+  let spotifyCalls = 0;
+  const savedAlbum = { id: "tea", title: "Tea & Sympathy", artistId: "bernard" };
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getArtistAlbums: async () => { spotifyCalls += 1; return []; },
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/artists/bernard/albums`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), [savedAlbum]);
+    assert.equal(spotifyCalls, 0);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [savedAlbum], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      spotifyCatalogCache: {
+        artistAlbums: {},
+        recentArtistAlbums: {},
+        retryAfterUntil: 200_000,
+      },
+    }),
+    now: () => 100_000,
+  });
+});
+
 test("exposes Spotify connection status", async () => {
   const spotify = {
     status: () => ({ configured: true, connected: false, profile: null }),

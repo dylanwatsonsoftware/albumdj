@@ -1,7 +1,13 @@
 import { scanAlbumCards, writeAlbumCard } from "./nfc.js";
 import { refreshSpotifyOnLoad } from "./spotify-sync.js";
 import { createPlaybackMonitor } from "./live-playback.js";
-import { loadStartupPreferences, parseApiResponse, startupFailureMessage } from "./startup.js";
+import {
+  loadStartupPreferences,
+  parseApiResponse,
+  readUiCache,
+  startupFailureMessage,
+  writeUiCache,
+} from "./startup.js";
 import {
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
@@ -71,8 +77,9 @@ const artistDiscographyBack = document.querySelector("#artist-discography-back")
 const appNavigation = document.querySelector("#app-navigation");
 const activeTargetSummary = document.querySelector("#active-target-summary");
 
-let state;
-let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", expiresAt: null };
+const cachedUi = readUiCache(globalThis.localStorage);
+let state = cachedUi?.state ?? null;
+let rotation = cachedUi?.rotation ?? { albumIds: [], albums: [], durationDays: 7, mode: "sequential", expiresAt: null };
 let livePlayback = null;
 let playbackMonitor = null;
 let activeCoverIndex = 0;
@@ -80,21 +87,35 @@ let dragPosition = null;
 let dragGesture = null;
 let suppressCoverClick = false;
 let renderedCoverIndexes = [];
-let favouriteArtists = [];
-let favouriteAlbums = [];
-let recentFavouriteAlbums = [];
-let recentReleasesLoading = true;
+let favouriteArtists = cachedUi?.favouriteArtists ?? [];
+let favouriteAlbums = cachedUi?.favouriteAlbums ?? [];
+let recentFavouriteAlbums = cachedUi?.recentFavouriteAlbums ?? [];
+let artistAlbums = cachedUi?.artistAlbums ?? {};
+let recentReleasesLoading = !cachedUi;
 let recentReleasesError = null;
 let autocompleteSuggestions = [];
 let activeSuggestionIndex = -1;
 let autocompleteTimer = null;
 let autocompleteRequestNumber = 0;
 let cachedSearch = { query: "", results: null };
-let spotifyConnected = false;
+let spotifyStatus = cachedUi?.spotifyStatus ?? null;
+let spotifyConnected = spotifyStatus?.connected ?? false;
 
 const COVER_SPACING = 88;
 const SPOTIFY_LIBRARY_REFRESH_INTERVAL = 6 * 60 * 60 * 1_000;
 const SPOTIFY_LIBRARY_REFRESH_KEY = "albumdj:last-spotify-library-refresh";
+
+function persistUiCache() {
+  writeUiCache(globalThis.localStorage, {
+    state,
+    rotation,
+    favouriteArtists,
+    favouriteAlbums,
+    recentFavouriteAlbums,
+    artistAlbums,
+    spotifyStatus,
+  });
+}
 const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
   requestFrame: requestAnimationFrame,
   render: (position) => {
@@ -175,6 +196,7 @@ async function refreshDevices() {
   try {
     state = await request("/api/spotify/devices", { method: "POST" });
     renderTargets();
+    persistUiCache();
   } finally {
     refreshDevicesButton.disabled = false;
     refreshDevicesButton.textContent = "Refresh devices";
@@ -266,6 +288,7 @@ function favouriteButton(artist) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ artists: favouriteArtists }),
     });
+    persistUiCache();
     renderFavouriteArtists();
     await loadRecentFavouriteReleases();
     button.replaceWith(favouriteButton(artist));
@@ -335,6 +358,7 @@ function favouriteAlbumButton(album) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ albums: favouriteAlbums }),
     });
+    persistUiCache();
     renderFavouriteAlbums();
     button.replaceWith(favouriteAlbumButton(album));
   });
@@ -389,6 +413,7 @@ function renderFavouriteAlbums() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ albums: favouriteAlbums }),
       });
+      persistUiCache();
       renderFavouriteAlbums();
     });
     menu.append(menuToggle, remove);
@@ -509,6 +534,7 @@ function renderFavouriteArtists() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ artists: favouriteArtists }),
       });
+      persistUiCache();
       renderFavouriteArtists();
       await loadRecentFavouriteReleases();
     });
@@ -592,16 +618,18 @@ async function loadRecentFavouriteReleases() {
   if (!spotifyConnected || !favouriteArtists.length) {
     recentReleasesLoading = false;
     recentFavouriteAlbums = [];
+    persistUiCache();
     renderRecentFavouriteReleases();
     return;
   }
-  recentReleasesLoading = true;
-  renderRecentFavouriteReleases();
+  const hasCachedReleases = recentFavouriteAlbums.length > 0;
+  recentReleasesLoading = !hasCachedReleases;
+  if (!hasCachedReleases) renderRecentFavouriteReleases();
   try {
     recentFavouriteAlbums = await request("/api/spotify/favourite-artists/releases");
+    persistUiCache();
   } catch (error) {
-    recentFavouriteAlbums = [];
-    recentReleasesError = error;
+    if (!hasCachedReleases) recentReleasesError = error;
   }
   recentReleasesLoading = false;
   renderRecentFavouriteReleases();
@@ -750,17 +778,25 @@ async function showArtistReleases(artist, button) {
   libraryBrowser.hidden = true;
   artistDiscography.hidden = false;
   artistDiscographyTitle.textContent = artist.name;
-  artistDiscographyStatus.textContent = "Loading all albums…";
-  artistDiscographyAlbums.replaceChildren();
+  const cachedAlbums = artistAlbums[artist.id]
+    ?? state.albums.filter((album) => album.artistId === artist.id);
+  artistDiscographyStatus.textContent = cachedAlbums.length
+    ? `${cachedAlbums.length} cached album${cachedAlbums.length === 1 ? "" : "s"} · checking for updates…`
+    : "Loading all albums…";
+  artistDiscographyAlbums.replaceChildren(...cachedAlbums.map(albumResultCard));
   window.scrollTo({ top: 0, behavior: "smooth" });
   try {
     const albums = await request(`/api/spotify/artists/${encodeURIComponent(artist.id)}/albums`);
+    artistAlbums[artist.id] = albums;
+    persistUiCache();
     artistDiscographyStatus.textContent = albums.length
       ? `${albums.length} album${albums.length === 1 ? "" : "s"}, newest first.`
       : `No albums found for ${artist.name}.`;
     artistDiscographyAlbums.replaceChildren(...albums.map(albumResultCard));
   } catch (error) {
-    artistDiscographyStatus.textContent = artistReleaseErrorMessage(artist.name, error);
+    artistDiscographyStatus.textContent = cachedAlbums.length
+      ? `Showing ${cachedAlbums.length} cached album${cachedAlbums.length === 1 ? "" : "s"}. Spotify refresh is unavailable right now.`
+      : artistReleaseErrorMessage(artist.name, error);
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -1013,6 +1049,7 @@ async function saveRotation(albumIds = rotation.albumIds) {
       mode: rotationMode.value,
     }),
   });
+  persistUiCache();
   renderRotation();
   renderAlbums();
   renderCoverFlow();
@@ -1080,6 +1117,7 @@ async function selectTarget(targetId) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ targetId }),
   });
+  persistUiCache();
   renderTargets();
 }
 
@@ -1171,7 +1209,8 @@ function showStartupFailure(error) {
 }
 
 async function startApp() {
-  state = await request("/api/state");
+  const statePromise = request("/api/state");
+  if (!state) state = await statePromise;
   searchForm.addEventListener("submit", searchSpotify);
   appNavigation.addEventListener("click", (event) => {
     const button = event.target.closest("[data-section-target]");
@@ -1245,21 +1284,31 @@ async function startApp() {
   renderFavouriteArtists();
   renderFavouriteAlbums();
   renderRecentFavouriteReleases();
+  if (spotifyStatus) renderSpotifyStatus(spotifyStatus);
   if (state.lastPlayback) showPlayback(state.lastPlayback);
 
   const preferencesPromise = loadStartupPreferences(request);
-  const spotifyStatus = await request("/api/spotify/status");
+  const spotifyStatusPromise = request("/api/spotify/status");
+  const [freshState, preferences, freshSpotifyStatus] = await Promise.all([
+    statePromise,
+    preferencesPromise,
+    spotifyStatusPromise,
+  ]);
+  state = freshState;
+  spotifyStatus = freshSpotifyStatus;
   spotifyConnected = spotifyStatus.connected;
   renderSpotifyStatus(spotifyStatus);
 
-  const preferences = await preferencesPromise;
   rotation = preferences.rotation;
   favouriteArtists = preferences.favouriteArtists;
   favouriteAlbums = preferences.favouriteAlbums;
+  renderTargets();
+  renderAlbums();
   renderRotation();
   renderCoverFlow();
   renderFavouriteArtists();
   renderFavouriteAlbums();
+  persistUiCache();
   void loadRecentFavouriteReleases();
 
   if (spotifyStatus.connected) {
@@ -1295,6 +1344,7 @@ async function startApp() {
         renderCoverFlow();
         renderRotation();
         renderSpotifyStatus(spotifyStatus);
+        persistUiCache();
       })
       .catch((error) => {
         document.querySelector("#destination-status").textContent = error.message;
