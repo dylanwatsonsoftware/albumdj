@@ -12,6 +12,7 @@ import {
 } from "./coverflow.js";
 import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
 import {
+  artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
   filterAlbums,
   getArtistInitials,
@@ -426,7 +427,7 @@ function artistResultCard(artist) {
   return card;
 }
 
-function renderDiscoveryResults({ heading, albums = [], artists = [] }) {
+function renderDiscoveryResults({ heading, albums = [], artists = [], emptyMessage = "No matching albums or artists found." }) {
   const headingElement = document.createElement("h3");
   headingElement.textContent = heading;
   const list = document.createElement("div");
@@ -435,7 +436,7 @@ function renderDiscoveryResults({ heading, albums = [], artists = [] }) {
   if (!list.children.length) {
     const empty = document.createElement("p");
     empty.className = "discovery-empty";
-    empty.textContent = "No matching albums or artists found.";
+    empty.textContent = emptyMessage;
     list.append(empty);
   }
   discoveryResultsElement.replaceChildren(headingElement, list);
@@ -722,6 +723,12 @@ async function showArtistReleases(artist, button) {
   try {
     const albums = await request(`/api/spotify/artists/${encodeURIComponent(artist.id)}/albums`);
     renderDiscoveryResults({ heading: `Recent releases by ${artist.name}`, albums });
+    discoveryResultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    renderDiscoveryResults({
+      heading: "Releases unavailable",
+      emptyMessage: artistReleaseErrorMessage(artist.name, error),
+    });
     discoveryResultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
   } finally {
     button.disabled = false;

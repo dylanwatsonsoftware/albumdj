@@ -178,7 +178,7 @@ export function createSpotifyClient({
 
     async getArtistAlbums(artistId) {
       const albums = [];
-      let next = `/artists/${encodeURIComponent(artistId)}/albums?include_groups=album,single&limit=50`;
+      let next = `/artists/${encodeURIComponent(artistId)}/albums?include_groups=album,single&limit=10`;
       while (next) {
         const page = await spotifyJson(next);
         albums.push(...page.items.filter(Boolean));

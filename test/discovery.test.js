@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
   filterAlbums,
   getArtistInitials,
@@ -60,6 +61,13 @@ test("moves through autocomplete suggestions without leaving the list", () => {
 test("album results can play or be favourited while artist results expose releases", () => {
   assert.deepEqual(getResultActions("album"), ["play", "favourite"]);
   assert.deepEqual(getResultActions("artist"), ["releases", "favourite"]);
+});
+
+test("explains artist release failures instead of leaving an empty result", () => {
+  assert.equal(
+    artistReleaseErrorMessage("Joni Mitchell", new Error("Spotify request failed (400)")),
+    "Couldn’t load releases by Joni Mitchell. Spotify request failed (400). Try again.",
+  );
 });
 
 test("adds, recognises, and explicitly removes a favourite album", () => {

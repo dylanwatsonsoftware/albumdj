@@ -203,6 +203,7 @@ test("searches Spotify for albums and artists", async () => {
 });
 
 test("loads an artist's newest unique releases", async () => {
+  let artistAlbumsUrl;
   const spotify = createSpotifyClient({
     clientId: "client-123",
     redirectUri: "https://example.test/callback",
@@ -210,15 +211,19 @@ test("loads an artist's newest unique releases", async () => {
       token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
       profile: { id: "listener", displayName: "Dylan" },
     },
-    fetchImpl: async () => Response.json({ items: [
+    fetchImpl: async (url) => {
+      artistAlbumsUrl = new URL(url);
+      return Response.json({ items: [
       { id: "old", name: "Old", uri: "spotify:album:old", artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {}, release_date: "2020-01-01" },
       { id: "new", name: "New", uri: "spotify:album:new", artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {}, release_date: "2026-01-01" },
       { id: "new", name: "New", uri: "spotify:album:new", artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {}, release_date: "2026-01-01" },
-    ], next: null }),
+      ], next: null });
+    },
   });
 
   const releases = await spotify.getArtistAlbums("artist-1");
 
+  assert.equal(artistAlbumsUrl.searchParams.get("limit"), "10");
   assert.deepEqual(releases.map(({ id }) => id), ["new", "old"]);
 });
 

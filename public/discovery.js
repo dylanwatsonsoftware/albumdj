@@ -77,3 +77,7 @@ export function moveSuggestionIndex(currentIndex, delta, suggestionCount) {
 export function getResultActions(resultType) {
   return resultType === "artist" ? ["releases", "favourite"] : ["play", "favourite"];
 }
+
+export function artistReleaseErrorMessage(artistName, error) {
+  return `Couldn’t load releases by ${artistName}. ${error.message}. Try again.`;
+}

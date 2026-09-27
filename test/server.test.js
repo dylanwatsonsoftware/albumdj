@@ -75,6 +75,11 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(startupModule.headers.get("content-type"), /javascript/);
     const navigationModule = await fetch(`${baseUrl}/navigation.js`);
     assert.equal(navigationModule.status, 200);
+    const appModule = await (await fetch(`${baseUrl}/app.js`)).text();
+    const moduleImports = new Map([...appModule.matchAll(/import\s+\{([^}]*)\}\s+from\s+"([^"]+)"/g)]
+      .map(([, names, path]) => [path, names]));
+    assert.match(moduleImports.get("./discovery.js"), /artistReleaseErrorMessage/);
+    assert.doesNotMatch(moduleImports.get("./coverflow.js"), /artistReleaseErrorMessage/);
   });
 });
 
