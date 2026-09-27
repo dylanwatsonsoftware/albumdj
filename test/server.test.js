@@ -98,6 +98,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(styles, /color-scheme:\s*dark/);
     assert.match(styles, /--paper:\s*#0d0e0c/);
     assert.match(styles, /--card:\s*#191a17/);
+    assert.match(styles, /html,\s*body\s*\{[^}]*overflow-x:\s*clip/s);
   });
 });
 
