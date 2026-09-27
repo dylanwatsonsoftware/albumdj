@@ -9,6 +9,7 @@ import {
   getFavouriteActionState,
   getFavouriteAlbumActionState,
   getResultActions,
+  getRecentReleasesViewState,
   moveSuggestionIndex,
   removeFavouriteArtist,
   removeFavouriteAlbum,
@@ -68,6 +69,22 @@ test("explains artist release failures instead of leaving an empty result", () =
     artistReleaseErrorMessage("Joni Mitchell", new Error("Spotify request failed (400)")),
     "Couldn’t load releases by Joni Mitchell. Spotify request failed (400). Try again.",
   );
+});
+
+test("keeps the recent releases section useful in every account state", () => {
+  assert.deepEqual(getRecentReleasesViewState({ loading: true }), {
+    message: "Checking your favourite artists…",
+    showAlbums: false,
+    tone: "loading",
+  });
+  assert.equal(getRecentReleasesViewState({ spotifyConnected: false }).message, "Connect Spotify to see new releases.");
+  assert.equal(getRecentReleasesViewState({ spotifyConnected: true, favouriteArtistCount: 0 }).message, "Favourite an artist to start your release feed.");
+  assert.equal(getRecentReleasesViewState({ spotifyConnected: true, favouriteArtistCount: 2, albums: [] }).message, "No full albums from your favourites in the last 12 months.");
+  assert.deepEqual(getRecentReleasesViewState({ spotifyConnected: true, favouriteArtistCount: 2, albums: [{ id: "new" }] }), {
+    message: "1 recent album from your favourite artists.",
+    showAlbums: true,
+    tone: "ready",
+  });
 });
 
 test("adds, recognises, and explicitly removes a favourite album", () => {

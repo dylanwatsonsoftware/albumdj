@@ -75,14 +75,6 @@
           <div id="favourite-albums" class="favourite-album-shelf" role="list"></div>
         </section>
 
-        <section id="recent-releases" class="recent-releases" aria-labelledby="recent-releases-heading" hidden>
-          <div class="recent-releases-heading">
-            <div><p class="step">Fresh arrivals</p><h3 id="recent-releases-heading">New from your favourites</h3></div>
-            <p>Albums released in the last 12 months.</p>
-          </div>
-          <div id="recent-release-albums" class="recent-release-albums" role="list"></div>
-        </section>
-
         <section class="home-scanner" aria-labelledby="scanner-heading">
           <div class="home-section-heading">
             <div><p class="step">Physical collection</p><h2 id="scanner-heading">Scan an album card</h2></div>
@@ -122,6 +114,13 @@
           <button type="submit">Search Spotify</button>
         </form>
         <div id="discovery-results" class="discovery-results" aria-live="polite"></div>
+        <section id="recent-releases" class="recent-releases library-releases" aria-labelledby="recent-releases-heading">
+          <div class="recent-releases-heading">
+            <div><p class="step">Fresh arrivals</p><h3 id="recent-releases-heading">Recently released</h3></div>
+            <p id="recent-releases-status" role="status">Checking your favourite artists…</p>
+          </div>
+          <div id="recent-release-albums" class="recent-release-albums" role="list" hidden></div>
+        </section>
         <div class="favourite-heading">
           <h3>Favourite artists</h3>
           <p id="favourite-artists-status">Your shortcut to new releases.</p>

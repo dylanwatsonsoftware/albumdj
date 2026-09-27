@@ -18,6 +18,7 @@ import {
   getArtistInitials,
   getFavouriteAlbumActionState,
   getFavouriteActionState,
+  getRecentReleasesViewState,
   getResultActions,
   moveSuggestionIndex,
   removeFavouriteArtist,
@@ -59,6 +60,7 @@ const favouriteAlbumsElement = document.querySelector("#favourite-albums");
 const favouriteAlbumsStatus = document.querySelector("#favourite-albums-status");
 const recentReleasesElement = document.querySelector("#recent-releases");
 const recentReleaseAlbumsElement = document.querySelector("#recent-release-albums");
+const recentReleasesStatus = document.querySelector("#recent-releases-status");
 const appNavigation = document.querySelector("#app-navigation");
 const activeTargetSummary = document.querySelector("#active-target-summary");
 
@@ -74,6 +76,8 @@ let renderedCoverIndexes = [];
 let favouriteArtists = [];
 let favouriteAlbums = [];
 let recentFavouriteAlbums = [];
+let recentReleasesLoading = true;
+let recentReleasesError = null;
 let autocompleteSuggestions = [];
 let activeSuggestionIndex = -1;
 let autocompleteTimer = null;
@@ -561,21 +565,36 @@ function recentReleaseCard(album) {
 }
 
 function renderRecentFavouriteReleases() {
-  recentReleasesElement.hidden = recentFavouriteAlbums.length === 0;
+  const view = getRecentReleasesViewState({
+    loading: recentReleasesLoading,
+    spotifyConnected,
+    favouriteArtistCount: favouriteArtists.length,
+    albums: recentFavouriteAlbums,
+    error: recentReleasesError,
+  });
+  recentReleasesElement.dataset.tone = view.tone;
+  recentReleasesStatus.textContent = view.message;
+  recentReleaseAlbumsElement.hidden = !view.showAlbums;
   recentReleaseAlbumsElement.replaceChildren(...recentFavouriteAlbums.map(recentReleaseCard));
 }
 
 async function loadRecentFavouriteReleases() {
+  recentReleasesError = null;
   if (!spotifyConnected || !favouriteArtists.length) {
+    recentReleasesLoading = false;
     recentFavouriteAlbums = [];
     renderRecentFavouriteReleases();
     return;
   }
+  recentReleasesLoading = true;
+  renderRecentFavouriteReleases();
   try {
     recentFavouriteAlbums = await request("/api/spotify/favourite-artists/releases");
-  } catch {
+  } catch (error) {
     recentFavouriteAlbums = [];
+    recentReleasesError = error;
   }
+  recentReleasesLoading = false;
   renderRecentFavouriteReleases();
 }
 

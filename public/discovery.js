@@ -81,3 +81,22 @@ export function getResultActions(resultType) {
 export function artistReleaseErrorMessage(artistName, error) {
   return `Couldn’t load releases by ${artistName}. ${error.message}. Try again.`;
 }
+
+export function getRecentReleasesViewState({
+  loading = false,
+  spotifyConnected = false,
+  favouriteArtistCount = 0,
+  albums = [],
+  error = null,
+} = {}) {
+  if (loading) return { message: "Checking your favourite artists…", showAlbums: false, tone: "loading" };
+  if (!spotifyConnected) return { message: "Connect Spotify to see new releases.", showAlbums: false, tone: "empty" };
+  if (!favouriteArtistCount) return { message: "Favourite an artist to start your release feed.", showAlbums: false, tone: "empty" };
+  if (error) return { message: `Couldn’t refresh releases. ${error.message}. Try again.`, showAlbums: false, tone: "error" };
+  if (!albums.length) return { message: "No full albums from your favourites in the last 12 months.", showAlbums: false, tone: "empty" };
+  return {
+    message: `${albums.length} recent album${albums.length === 1 ? "" : "s"} from your favourite artists.`,
+    showAlbums: true,
+    tone: "ready",
+  };
+}

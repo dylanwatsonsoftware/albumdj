@@ -57,6 +57,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="favourite-albums"/);
     assert.match(html, /id="recent-releases"/);
     assert.match(html, /id="recent-release-albums"/);
+    assert.match(html, /id="recent-releases-status"/);
     assert.match(html, /id="discovery-results"/);
     assert.match(html, /Connect Spotify/);
     assert.match(html, /id="app-navigation"/);
