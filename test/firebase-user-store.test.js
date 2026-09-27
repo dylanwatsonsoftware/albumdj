@@ -8,18 +8,20 @@ function fakeFirestore(initial = {}) {
   return {
     writes,
     collection(name) {
-      assert.equal(name, "albumdj_sessions");
       return {
         doc(sessionId) {
           return {
             async get() {
+              const records = initial[name] ?? (name === "albumdj_sessions" ? initial : {});
               return {
-                exists: Object.hasOwn(initial, sessionId),
-                data: () => initial[sessionId],
+                exists: Object.hasOwn(records, sessionId),
+                data: () => records[sessionId],
               };
             },
             async set(value, options) {
-              writes.push({ sessionId, value, options });
+              writes.push({ ...(name === "albumdj_sessions" ? {} : { collection: name }), sessionId, value, options });
+              const records = initial[name] ?? (name === "albumdj_sessions" ? initial : (initial[name] = {}));
+              records[sessionId] = options?.merge ? { ...records[sessionId], ...value } : value;
             },
           };
         },
@@ -42,6 +44,7 @@ test("loads one isolated Album DJ session from Firestore", async () => {
 
   assert.deepEqual(await store.load("session-one"), {
     sessionId: "session-one",
+    spotifyUserId: "one",
     spotifySession: { profile: { id: "one" } },
     playerState: { selectedTargetId: "speaker-one" },
     rotation: { albumIds: ["album-one"] },
@@ -49,6 +52,134 @@ test("loads one isolated Album DJ session from Firestore", async () => {
     favouriteAlbums: [{ id: "album-one", title: "Album One" }],
   });
   assert.equal(await store.load("session-two"), null);
+});
+
+test("loads shared preferences by verified Spotify account while keeping tokens per browser", async () => {
+  const firestore = fakeFirestore({
+    albumdj_sessions: {
+      "browser-a": { spotifySession: { token: { accessToken: "token-a" }, profile: { id: "spotify-user" } } },
+      "browser-b": { spotifySession: { token: { accessToken: "token-b" }, profile: { id: "spotify-user" } } },
+    },
+    albumdj_users: {
+      "spotify-user": {
+        favouriteArtists: [{ id: "artist-one", name: "Artist One" }],
+        favouriteAlbums: [{ id: "album-one", title: "Album One" }],
+      },
+    },
+  });
+  const store = createFirebaseUserStore({ firestore });
+
+  const first = await store.load("browser-a");
+  const second = await store.load("browser-b");
+
+  assert.equal(first.spotifySession.token.accessToken, "token-a");
+  assert.equal(second.spotifySession.token.accessToken, "token-b");
+  assert.equal(first.spotifyUserId, "spotify-user");
+  assert.deepEqual(first.favouriteAlbums, second.favouriteAlbums);
+  assert.deepEqual(first.favouriteArtists, second.favouriteArtists);
+});
+
+test("migrates existing browser preferences into the Spotify account record", async () => {
+  const firestore = fakeFirestore({
+    albumdj_sessions: {
+      "browser-a": {
+        spotifySession: { profile: { id: "spotify-user" } },
+        favouriteArtists: [{ id: "artist-one", name: "Artist One" }],
+        favouriteAlbums: [{ id: "album-one", title: "Album One" }],
+      },
+    },
+    albumdj_users: {},
+  });
+  const store = createFirebaseUserStore({ firestore });
+
+  await store.load("browser-a");
+
+  assert.deepEqual(firestore.writes, [
+    {
+      collection: "albumdj_users",
+      sessionId: "spotify-user",
+      value: {
+        playerState: null,
+        rotation: null,
+        favouriteArtists: [{ id: "artist-one", name: "Artist One" }],
+        favouriteAlbums: [{ id: "album-one", title: "Album One" }],
+      },
+      options: { merge: true },
+    },
+    {
+      sessionId: "browser-a",
+      value: { preferencesMigratedTo: "spotify-user" },
+      options: { merge: true },
+    },
+  ]);
+});
+
+test("migrates legacy favourites even when another browser created the account first", async () => {
+  const firestore = fakeFirestore({
+    albumdj_sessions: {
+      "old-browser": {
+        spotifySession: { profile: { id: "spotify-user" } },
+        favouriteAlbums: [{ id: "blue", title: "Blue" }],
+      },
+    },
+    albumdj_users: {
+      "spotify-user": { favouriteArtists: [], favouriteAlbums: [] },
+    },
+  });
+  const store = createFirebaseUserStore({ firestore });
+
+  const loaded = await store.load("old-browser");
+
+  assert.deepEqual(loaded.favouriteAlbums, [{ id: "blue", title: "Blue" }]);
+  assert.ok(firestore.writes.some(({ collection, sessionId, value }) => (
+    collection === "albumdj_users"
+    && sessionId === "spotify-user"
+    && value.favouriteAlbums?.[0]?.id === "blue"
+  )));
+});
+
+test("does not resurrect old favourites after that browser has migrated", async () => {
+  const firestore = fakeFirestore({
+    albumdj_sessions: {
+      "old-browser": {
+        spotifySession: { profile: { id: "spotify-user" } },
+        preferencesMigratedTo: "spotify-user",
+        favouriteAlbums: [{ id: "blue", title: "Blue" }],
+      },
+    },
+    albumdj_users: {
+      "spotify-user": { favouriteArtists: [], favouriteAlbums: [] },
+    },
+  });
+  const store = createFirebaseUserStore({ firestore });
+
+  const loaded = await store.load("old-browser");
+
+  assert.deepEqual(loaded.favouriteAlbums, []);
+  assert.deepEqual(firestore.writes, []);
+});
+
+test("writes preferences to a Spotify account without moving browser tokens", async () => {
+  const firestore = fakeFirestore();
+  const store = createFirebaseUserStore({ firestore });
+  const owner = { sessionId: "browser-a", spotifyUserId: "spotify-user" };
+
+  await store.saveFavouriteAlbums(owner, [{ id: "album-one", title: "Album One" }]);
+  await store.saveSpotifySession("browser-a", { token: { accessToken: "secret" } });
+
+  assert.deepEqual(firestore.writes, [
+    {
+      collection: "albumdj_users",
+      sessionId: "spotify-user",
+      value: { favouriteAlbums: [{ id: "album-one", title: "Album One" }] },
+      options: { merge: true },
+    },
+    {
+      sessionId: "browser-a",
+      value: { spotifySession: { token: { accessToken: "secret" } } },
+      options: { merge: true },
+    },
+  ]);
 });
 
 test("merges only the requested session field", async () => {

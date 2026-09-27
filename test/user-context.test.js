@@ -10,17 +10,17 @@ test("rehydrates player and rotation state for one browser session only", async 
     saveSpotifySession: async (sessionId, spotifySession) => {
       records.set(sessionId, { ...records.get(sessionId), sessionId, spotifySession });
     },
-    savePlayerState: async (sessionId, playerState) => {
-      records.set(sessionId, { ...records.get(sessionId), sessionId, playerState });
+    savePlayerState: async (owner, playerState) => {
+      records.set(owner.spotifyUserId ?? owner.sessionId, { ...records.get(owner.spotifyUserId ?? owner.sessionId), playerState });
     },
-    saveRotation: async (sessionId, rotation) => {
-      records.set(sessionId, { ...records.get(sessionId), sessionId, rotation });
+    saveRotation: async (owner, rotation) => {
+      records.set(owner.spotifyUserId ?? owner.sessionId, { ...records.get(owner.spotifyUserId ?? owner.sessionId), rotation });
     },
-    saveFavouriteArtists: async (sessionId, favouriteArtists) => {
-      records.set(sessionId, { ...records.get(sessionId), sessionId, favouriteArtists });
+    saveFavouriteArtists: async (owner, favouriteArtists) => {
+      records.set(owner.spotifyUserId ?? owner.sessionId, { ...records.get(owner.spotifyUserId ?? owner.sessionId), favouriteArtists });
     },
-    saveFavouriteAlbums: async (sessionId, favouriteAlbums) => {
-      records.set(sessionId, { ...records.get(sessionId), sessionId, favouriteAlbums });
+    saveFavouriteAlbums: async (owner, favouriteAlbums) => {
+      records.set(owner.spotifyUserId ?? owner.sessionId, { ...records.get(owner.spotifyUserId ?? owner.sessionId), favouriteAlbums });
     },
   };
   const getContext = createUserContextProvider({
