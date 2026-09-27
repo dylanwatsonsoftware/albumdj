@@ -9,6 +9,7 @@ import { createPlayerState } from "./player-state.js";
 import { createSpotifyClient } from "./spotify-client.js";
 import { createJsonSessionStore } from "./session-store.js";
 import { buildRotationQueue, createRotationShelf } from "./rotation-shelf.js";
+import { selectRecentFavouriteAlbums } from "./recent-releases.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = join(here, "..", "public");
@@ -38,6 +39,7 @@ async function readJson(request) {
 }
 
 export function createPrototypeHandler(options = {}) {
+  const now = options.now ?? Date.now;
   let sharedContext = null;
   if (!options.contextProvider) {
     sharedContext = {
@@ -106,6 +108,13 @@ export function createPrototypeHandler(options = {}) {
         const query = url.searchParams.get("q")?.trim() ?? "";
         if (!query) throw new Error("Enter an album or artist to search for");
         return sendJson(response, 200, await spotify.searchCatalog(query));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/spotify/favourite-artists/releases") {
+        const releasesByArtist = await Promise.all(
+          favouriteArtists.map(({ id }) => spotify.getArtistAlbums(id)),
+        );
+        return sendJson(response, 200, selectRecentFavouriteAlbums(releasesByArtist.flat(), { now: now() }));
       }
 
       const artistAlbumsMatch = url.pathname.match(/^\/api\/spotify\/artists\/([^/]+)\/albums$/);

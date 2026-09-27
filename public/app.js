@@ -49,6 +49,8 @@ const searchSuggestionsElement = document.querySelector("#search-suggestions");
 const discoveryResultsElement = document.querySelector("#discovery-results");
 const favouriteArtistsElement = document.querySelector("#favourite-artists");
 const favouriteArtistsStatus = document.querySelector("#favourite-artists-status");
+const recentReleasesElement = document.querySelector("#recent-releases");
+const recentReleaseAlbumsElement = document.querySelector("#recent-release-albums");
 
 let state;
 let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", expiresAt: null };
@@ -61,6 +63,7 @@ let dragGesture = null;
 let suppressCoverClick = false;
 let renderedCoverIndexes = [];
 let favouriteArtists = [];
+let recentFavouriteAlbums = [];
 let autocompleteSuggestions = [];
 let activeSuggestionIndex = -1;
 let autocompleteTimer = null;
@@ -225,6 +228,7 @@ function favouriteButton(artist) {
       body: JSON.stringify({ artists: favouriteArtists }),
     });
     renderFavouriteArtists();
+    await loadRecentFavouriteReleases();
     button.replaceWith(favouriteButton(artist));
   });
   return button;
@@ -386,11 +390,86 @@ function renderFavouriteArtists() {
         body: JSON.stringify({ artists: favouriteArtists }),
       });
       renderFavouriteArtists();
+      await loadRecentFavouriteReleases();
     });
     menu.append(menuToggle, remove);
     card.append(artwork, copy, menu);
     return card;
   }));
+}
+
+function formatReleaseDate(releaseDate) {
+  if (!releaseDate) return "New album";
+  const parts = releaseDate.split("-");
+  if (parts.length === 1) return parts[0];
+  const date = new Date(`${releaseDate}${parts.length === 2 ? "-01" : ""}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return releaseDate;
+  return new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
+function recentReleaseCard(album) {
+  const card = document.createElement("article");
+  card.className = "recent-release-card";
+  card.setAttribute("role", "listitem");
+
+  const artwork = document.createElement("div");
+  artwork.className = "recent-release-art";
+  if (album.imageUrl) {
+    const image = document.createElement("img");
+    image.src = album.imageUrl;
+    image.alt = "";
+    image.loading = "lazy";
+    artwork.append(image);
+  } else {
+    const fallback = document.createElement("span");
+    fallback.textContent = "NEW";
+    artwork.append(fallback);
+  }
+
+  const date = document.createElement("small");
+  date.textContent = `Fresh · ${formatReleaseDate(album.releaseDate)}`;
+  const title = document.createElement("strong");
+  title.textContent = album.title;
+  const artist = document.createElement("span");
+  artist.textContent = album.artist;
+
+  const actions = document.createElement("div");
+  actions.className = "recent-release-actions";
+  const play = document.createElement("button");
+  play.type = "button";
+  play.textContent = "Play album";
+  play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
+  actions.append(play);
+  if (album.spotifyUrl) {
+    const link = document.createElement("a");
+    link.href = album.spotifyUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "Spotify ↗";
+    actions.append(link);
+  }
+
+  card.append(artwork, date, title, artist, actions);
+  return card;
+}
+
+function renderRecentFavouriteReleases() {
+  recentReleasesElement.hidden = recentFavouriteAlbums.length === 0;
+  recentReleaseAlbumsElement.replaceChildren(...recentFavouriteAlbums.map(recentReleaseCard));
+}
+
+async function loadRecentFavouriteReleases() {
+  if (!spotifyConnected || !favouriteArtists.length) {
+    recentFavouriteAlbums = [];
+    renderRecentFavouriteReleases();
+    return;
+  }
+  try {
+    recentFavouriteAlbums = await request("/api/spotify/favourite-artists/releases");
+  } catch {
+    recentFavouriteAlbums = [];
+  }
+  renderRecentFavouriteReleases();
 }
 
 function closeAutocomplete() {
@@ -1009,6 +1088,7 @@ async function startApp() {
   renderCoverFlow();
   renderRotation();
   renderFavouriteArtists();
+  await loadRecentFavouriteReleases();
   renderSpotifyStatus(spotifyStatus);
 
   if (state.lastPlayback) showPlayback(state.lastPlayback);

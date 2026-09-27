@@ -54,6 +54,8 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="search-suggestions"/);
     assert.match(html, /role="listbox"/);
     assert.match(html, /id="favourite-artists"/);
+    assert.match(html, /id="recent-releases"/);
+    assert.match(html, /id="recent-release-albums"/);
     assert.match(html, /id="discovery-results"/);
     assert.match(html, /Connect Spotify/);
 
@@ -112,6 +114,30 @@ test("plays an album found through Spotify search on the selected device", async
     assert.equal((await response.json()).album.title, "Blue");
     assert.deepEqual(command, { deviceId: "whole-house", spotifyUri: "spotify:album:blue" });
   }, { spotify });
+});
+
+test("showcases recent albums from favourite artists", async () => {
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getArtistAlbums: async (artistId) => [
+      { id: `${artistId}-new`, title: "New Album", albumType: "album", releaseDate: "2026-06-01" },
+      { id: `${artistId}-old`, title: "Old Album", albumType: "album", releaseDate: "2024-01-01" },
+    ],
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/favourite-artists/releases`);
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).map(({ id }) => id), ["joni-new", "coltrane-new"]);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      favouriteArtists: [{ id: "joni" }, { id: "coltrane" }],
+    }),
+    now: () => new Date("2026-09-27T12:00:00Z").getTime(),
+  });
 });
 
 test("exposes Spotify connection status", async () => {

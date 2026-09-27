@@ -20,6 +20,7 @@ function mapAlbum(album) {
     imageUrl: album.images[0]?.url ?? null,
     spotifyUrl: album.external_urls?.spotify ?? null,
     releaseDate: album.release_date ?? null,
+    albumType: album.album_type ?? "album",
   };
 }
 
