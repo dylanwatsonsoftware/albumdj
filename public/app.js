@@ -25,6 +25,7 @@ import {
   toggleFavouriteArtist,
   toggleFavouriteAlbum,
 } from "./discovery.js";
+import { getNavigationState, sectionFromHash } from "./navigation.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -56,6 +57,8 @@ const favouriteAlbumsElement = document.querySelector("#favourite-albums");
 const favouriteAlbumsStatus = document.querySelector("#favourite-albums-status");
 const recentReleasesElement = document.querySelector("#recent-releases");
 const recentReleaseAlbumsElement = document.querySelector("#recent-release-albums");
+const appNavigation = document.querySelector("#app-navigation");
+const activeTargetSummary = document.querySelector("#active-target-summary");
 
 let state;
 let rotation = { albumIds: [], albums: [], durationDays: 7, mode: "sequential", expiresAt: null };
@@ -117,10 +120,13 @@ async function request(path, options) {
 
 function renderTargets() {
   if (!state.targets.length) {
+    activeTargetSummary.textContent = "Choose speaker";
     targetsElement.replaceChildren();
     document.querySelector("#destination-status").textContent = "No Spotify devices found. Open Spotify on a device, then refresh.";
     return;
   }
+  const selectedTarget = state.targets.find(({ id }) => id === state.selectedTargetId);
+  activeTargetSummary.textContent = selectedTarget?.name ?? "Choose speaker";
   document.querySelector("#destination-status").textContent = "Choose an available Spotify Connect device.";
   targetsElement.replaceChildren(...state.targets.map((target) => {
     const button = document.createElement("button");
@@ -134,6 +140,19 @@ function renderTargets() {
     button.addEventListener("click", () => selectTarget(target.id));
     return button;
   }));
+}
+
+function showAppSection(section, { updateHash = true } = {}) {
+  const navigation = getNavigationState(section);
+  document.querySelectorAll("[data-app-section]").forEach((panel) => {
+    panel.hidden = !navigation.sections[panel.dataset.appSection];
+  });
+  appNavigation.querySelectorAll("[data-section-target]").forEach((button) => {
+    const selected = button.dataset.sectionTarget === navigation.activeSection;
+    button.setAttribute("aria-selected", String(selected));
+  });
+  if (updateHash) history.replaceState(null, "", `#${navigation.activeSection}`);
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function refreshDevices() {
@@ -1114,6 +1133,15 @@ function showStartupFailure(error) {
 async function startApp() {
   state = await request("/api/state");
   searchForm.addEventListener("submit", searchSpotify);
+  appNavigation.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-section-target]");
+    if (button) showAppSection(button.dataset.sectionTarget);
+  });
+  document.querySelectorAll("[data-navigate]").forEach((button) => {
+    button.addEventListener("click", () => showAppSection(button.dataset.navigate));
+  });
+  window.addEventListener("hashchange", () => showAppSection(sectionFromHash(location.hash), { updateHash: false }));
+  showAppSection(sectionFromHash(location.hash), { updateHash: false });
   searchInput.addEventListener("input", () => {
     activeCoverIndex = 0;
     renderAlbums();

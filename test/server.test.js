@@ -33,8 +33,8 @@ test("serves the mobile card-scanner interface", async () => {
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/html/);
     assert.match(html, /<title>Album DJ<\/title>/);
-    assert.match(html, /Choose where to listen/);
-    assert.match(html, /Scan an NFC card/);
+    assert.match(html, /<h1 id="destination-heading">Listen on<\/h1>/);
+    assert.match(html, /Scan an album card/);
     assert.match(html, /id="scan-nfc"/);
     assert.match(html, /id="nfc-status"/);
     assert.match(html, /id="coverflow"/);
@@ -59,10 +59,17 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="recent-release-albums"/);
     assert.match(html, /id="discovery-results"/);
     assert.match(html, /Connect Spotify/);
+    assert.match(html, /id="app-navigation"/);
+    assert.match(html, /data-app-section="home"/);
+    assert.match(html, /data-app-section="library"/);
+    assert.match(html, /data-app-section="stack"/);
+    assert.match(html, /data-app-section="devices"/);
 
     const startupModule = await fetch(`${baseUrl}/startup.js`);
     assert.equal(startupModule.status, 200);
     assert.match(startupModule.headers.get("content-type"), /javascript/);
+    const navigationModule = await fetch(`${baseUrl}/navigation.js`);
+    assert.equal(navigationModule.status, 200);
   });
 });
 

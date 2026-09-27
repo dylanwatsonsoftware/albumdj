@@ -25,6 +25,7 @@ const assets = new Map([
   ["/coverflow.js", ["coverflow.js", "text/javascript; charset=utf-8"]],
   ["/rotation.js", ["rotation.js", "text/javascript; charset=utf-8"]],
   ["/discovery.js", ["discovery.js", "text/javascript; charset=utf-8"]],
+  ["/navigation.js", ["navigation.js", "text/javascript; charset=utf-8"]],
 ]);
 
 function sendJson(response, status, value) {
