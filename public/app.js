@@ -38,7 +38,14 @@ import {
   toggleFavouriteArtist,
   toggleFavouriteAlbum,
 } from "./discovery.js";
-import { getNavigationIntent, getNavigationState, sectionFromHash } from "./navigation.js";
+import {
+  artistBackAction,
+  buildArtistHash,
+  getNavigationIntent,
+  getNavigationState,
+  routeFromHash,
+  writeNavigationHistory,
+} from "./navigation.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -193,8 +200,10 @@ function renderTargets() {
   }));
 }
 
-function showAppSection(section, { updateHash = true } = {}) {
+function showAppSection(section, { updateHash = true, replaceHash = false } = {}) {
   const navigation = getNavigationState(section);
+  libraryBrowser.hidden = false;
+  artistDiscography.hidden = true;
   document.querySelectorAll("[data-app-section]").forEach((panel) => {
     panel.hidden = !navigation.sections[panel.dataset.appSection];
   });
@@ -202,7 +211,10 @@ function showAppSection(section, { updateHash = true } = {}) {
     const selected = button.dataset.sectionTarget === navigation.activeSection;
     button.setAttribute("aria-selected", String(selected));
   });
-  if (updateHash) history.replaceState(null, "", `#${navigation.activeSection}`);
+  const hash = `#${navigation.activeSection}`;
+  if (updateHash && (location.hash !== hash || !history.state?.albumDj)) {
+    writeNavigationHistory(history, hash, { replace: replaceHash });
+  }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -260,7 +272,6 @@ function rotationAlbumButton(album) {
 function viewAlbumArtist(album, button) {
   const artist = getAlbumArtist(album);
   if (!artist) return;
-  showAppSection("home");
   void showArtistReleases(artist, button);
 }
 
@@ -868,10 +879,17 @@ async function searchSpotify(event) {
   }
 }
 
-async function showArtistReleases(artist, button) {
-  button.disabled = true;
-  const originalText = button.textContent;
-  showAppSection("home");
+async function showArtistReleases(artist, button = null, { updateHash = true } = {}) {
+  if (button) button.disabled = true;
+  const originalText = button?.textContent;
+  const returnHash = location.hash || "#home";
+  showAppSection("home", { updateHash: false });
+  const artistHash = buildArtistHash(artist);
+  if (updateHash && location.hash !== artistHash) {
+    writeNavigationHistory(history, artistHash, {
+      state: { returnHash: routeFromHash(returnHash).view === "artist" ? "#home" : returnHash },
+    });
+  }
   libraryBrowser.hidden = true;
   artistDiscography.hidden = false;
   artistDiscographyTitle.textContent = artist.name;
@@ -896,9 +914,20 @@ async function showArtistReleases(artist, button) {
       ? `Showing ${cachedAlbums.length} cached album${cachedAlbums.length === 1 ? "" : "s"}. Spotify refresh is unavailable right now.`
       : artistReleaseErrorMessage(artist.name, error);
   } finally {
-    button.disabled = false;
-    button.textContent = originalText;
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
   }
+}
+
+function showLocationRoute() {
+  const route = routeFromHash(location.hash);
+  if (route.view === "artist") {
+    void showArtistReleases(route.artist, null, { updateHash: false });
+    return;
+  }
+  showAppSection(route.section, { updateHash: false });
 }
 
 async function playDiscoveredAlbum(albumId, button) {
@@ -1339,7 +1368,8 @@ async function startApp() {
     if (button) showAppSection(button.dataset.sectionTarget);
   });
   document.querySelectorAll("[data-navigate]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
       const intent = getNavigationIntent(button.dataset.navigate, button.dataset.focusTarget);
       showAppSection(intent.section);
       if (!intent.focusTarget) return;
@@ -1350,8 +1380,13 @@ async function startApp() {
       });
     });
   });
-  window.addEventListener("hashchange", () => showAppSection(sectionFromHash(location.hash), { updateHash: false }));
-  showAppSection(sectionFromHash(location.hash), { updateHash: false });
+  const initialRoute = routeFromHash(location.hash);
+  const initialHash = initialRoute.view === "artist"
+    ? buildArtistHash(initialRoute.artist)
+    : `#${initialRoute.section}`;
+  writeNavigationHistory(history, initialHash, { replace: true });
+  window.addEventListener("popstate", showLocationRoute);
+  showLocationRoute();
   searchInput.addEventListener("input", () => {
     scheduleAutocomplete();
   });
@@ -1395,9 +1430,12 @@ async function startApp() {
   coverflowStage.addEventListener("pointerup", finishCoverFlowDrag);
   coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
   artistDiscographyBack.addEventListener("click", () => {
-    artistDiscography.hidden = true;
-    libraryBrowser.hidden = false;
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (artistBackAction(history.state) === "back") {
+      history.back();
+      return;
+    }
+    showAppSection("home", { updateHash: false });
+    writeNavigationHistory(history, "#home", { replace: true });
   });
 
   if ("NDEFReader" in globalThis) {

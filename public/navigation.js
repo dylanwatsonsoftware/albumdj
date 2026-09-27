@@ -13,7 +13,44 @@ export function getNavigationState(section) {
 }
 
 export function sectionFromHash(hash) {
-  return getNavigationState(hash.replace(/^#/, "")).activeSection;
+  return routeFromHash(hash).section;
+}
+
+function safelyDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
+}
+
+export function routeFromHash(hash) {
+  const value = hash.replace(/^#/, "");
+  const [path, query = ""] = value.split("?", 2);
+  if (path.startsWith("artist/")) {
+    const id = safelyDecode(path.slice("artist/".length));
+    if (id) {
+      const name = new URLSearchParams(query).get("name")?.trim() || "Artist";
+      return { section: "home", view: "artist", artist: { id, name } };
+    }
+  }
+  const section = getNavigationState(path).activeSection;
+  return { section, view: "section", artist: null };
+}
+
+export function buildArtistHash(artist) {
+  if (!artist?.id) return "#home";
+  const query = new URLSearchParams({ name: artist.name || "Artist" });
+  return `#artist/${encodeURIComponent(artist.id)}?${query}`;
+}
+
+export function writeNavigationHistory(history, hash, { replace = false, state = {} } = {}) {
+  const method = replace ? "replaceState" : "pushState";
+  history[method]({ albumDj: true, ...state }, "", hash);
+}
+
+export function artistBackAction(historyState) {
+  return historyState?.albumDj && historyState.returnHash ? "back" : "home";
 }
 
 export function getNavigationIntent(section, focusTarget) {

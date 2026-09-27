@@ -68,6 +68,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /data-app-section="library"/);
     assert.match(html, /data-app-section="stack"/);
     assert.match(html, /data-app-section="devices"/);
+    assert.match(html, /class="compact-brand"[^>]*data-navigate="home"/);
     assert.match(html, /class="home-stack-hero"/);
     assert.match(html, /data-coverflow-source="rotation"/);
     assert.match(html, /id="coverflow-empty-action"/);
@@ -99,6 +100,8 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(styles, /--paper:\s*#0d0e0c/);
     assert.match(styles, /--card:\s*#191a17/);
     assert.match(styles, /html,\s*body\s*\{[^}]*overflow-x:\s*clip/s);
+    assert.match(styles, /\.recent-release-actions\s*\{[^}]*flex-wrap:\s*wrap/s);
+    assert.match(styles, /\.recent-release-card\s*\{[^}]*flex:\s*0\s+0\s+min\(78vw,\s*250px\)/s);
   });
 });
 

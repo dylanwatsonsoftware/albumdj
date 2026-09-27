@@ -387,7 +387,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .recent-release-card > small { margin-top: 9px; color: var(--acid); font: 500 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; }
 .recent-release-card > strong { margin-top: 3px; font-size: 12px; }
 .recent-release-card > span { margin-top: 2px; color: #aaa99f; font-size: 9px; }
-.recent-release-actions { display: flex; gap: 8px; align-items: center; margin-top: 9px; }
+.recent-release-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 9px; }
 .recent-release-actions button { border: 1px solid var(--acid); border-radius: 999px; padding: 7px 9px; background: var(--acid); color: var(--accent-ink); font: 600 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; }
 .recent-release-actions button:disabled { opacity: .55; cursor: wait; }
 .recent-release-actions .recent-artist-albums { border-color: #686860; background: transparent; color: white; }
@@ -938,6 +938,13 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   .recent-releases { margin-top: 24px; }
   .recent-releases-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
   .recent-releases-heading > p { max-width: none; text-align: left; }
+  .recent-release-albums { gap: 14px; scroll-padding-left: 2px; }
+  .recent-release-card { flex: 0 0 min(78vw, 250px); }
+  .recent-release-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .recent-release-actions button,
+  .recent-release-actions a { width: 100%; min-height: 34px; display: grid; place-items: center; padding: 7px 6px; text-align: center; line-height: 1.15; }
+  .recent-release-actions .recent-artist-albums,
+  .recent-release-actions a { grid-column: 1 / -1; }
   .stack-preview { align-items: flex-start; flex-direction: column; }
   .target-list, .album-grid, .coverflow, .rotation-panel { margin-left: 0; }
   .app-navigation { bottom: 8px; width: calc(100% - 16px); }
