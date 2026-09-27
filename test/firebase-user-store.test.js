@@ -8,7 +8,7 @@ function fakeFirestore(initial = {}) {
   return {
     writes,
     collection(name) {
-      assert.equal(name, "spinstack_sessions");
+      assert.equal(name, "albumdj_sessions");
       return {
         doc(sessionId) {
           return {
@@ -28,7 +28,7 @@ function fakeFirestore(initial = {}) {
   };
 }
 
-test("loads one isolated SpinStack session from Firestore", async () => {
+test("loads one isolated Album DJ session from Firestore", async () => {
   const firestore = fakeFirestore({
     "session-one": {
       spotifySession: { profile: { id: "one" } },

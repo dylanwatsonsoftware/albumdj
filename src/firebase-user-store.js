@@ -1,4 +1,4 @@
-const COLLECTION = "spinstack_sessions";
+const COLLECTION = "albumdj_sessions";
 
 export function createFirebaseUserStore({ firestore }) {
   if (!firestore) throw new Error("Firestore is not configured");

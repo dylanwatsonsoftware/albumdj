@@ -5,7 +5,7 @@ import { createFirebaseAdminFirestore } from "../src/firebase-admin.js";
 
 test("initializes Firestore with server-only Firebase credentials", () => {
   const calls = [];
-  const app = { name: "spinstack" };
+  const app = { name: "albumdj" };
   const firestore = { collection: () => {} };
 
   const result = createFirebaseAdminFirestore({

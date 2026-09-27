@@ -20,7 +20,7 @@ test("rehydrates player and rotation state for one browser session only", async 
   const getContext = createUserContextProvider({
     userStore,
     spotifyClientId: "client-1",
-    spotifyRedirectUri: "https://spinstack.test/api/auth/spotify/callback",
+    spotifyRedirectUri: "https://albumdj.test/api/auth/spotify/callback",
   });
   const first = await getContext("browser-a");
   const favourite = { id: "favourite", title: "Favourite", artist: "Artist", spotifyUri: "spotify:album:favourite" };

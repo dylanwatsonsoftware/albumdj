@@ -1,5 +1,5 @@
 export function restoreVercelApiPath(requestUrl) {
-  const url = new URL(requestUrl, "https://spinstack.local");
+  const url = new URL(requestUrl, "https://albumdj.local");
   const route = url.searchParams.get("route");
   if (!route) return `${url.pathname}${url.search}`;
   url.searchParams.delete("route");

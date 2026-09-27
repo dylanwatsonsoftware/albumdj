@@ -1,8 +1,8 @@
-# SpinStack
+# Album DJ
 
 A physical Spotify album changer. Load a temporary stack of favourite albums, pick a Spotify Connect device, then play a disc from the changer UI or by tapping its NFC card.
 
-The phone-friendly web page connects to Spotify, imports saved albums, refreshes available devices, writes album IDs to NFC cards, and plays a paired card when it is scanned. Albums can be browsed with a swipeable, momentum-driven Cover Flow or the full grid. SpinStack keeps a smaller set loaded for one or two weeks: tap any numbered disc slot to play that album, play the complete stack in order, or shuffle every song across it. Its bottom player shows Spotify's real current track and device, polls for changes, and can pause, resume, or skip playback.
+The phone-friendly web page connects to Spotify, imports saved albums, refreshes available devices, writes album IDs to NFC cards, and plays a paired card when it is scanned. Albums can be browsed with a swipeable, momentum-driven Cover Flow or the full grid. Album DJ keeps a smaller set loaded for one or two weeks: tap any numbered disc slot to play that album, play the complete stack in order, or shuffle every song across it. Its bottom player shows Spotify's real current track and device, polls for changes, and can pause, resume, or skip playback.
 
 ## Try the prototype
 
@@ -27,7 +27,7 @@ Register the same redirect URI in the Spotify developer dashboard. Then open the
 
 The card contains a portable text record in the form `physical-favourite:<album-id>`. It does not contain a Spotify access token or other account credentials.
 
-## Load SpinStack
+## Load Album DJ
 
 1. Browse Cover Flow or the album grid and press **Add to rotation** on each album you want.
 2. Choose whether to keep the shelf for one or two weeks.
@@ -47,7 +47,7 @@ The Vercel build supports separate browser sessions. Each person gets their own 
 4. Register `https://your-domain/api/auth/spotify/callback` as an exact Spotify redirect URI.
 5. Deploy with `vercel --prod`.
 
-Spotify development-mode apps currently support a small allowlist. Add every beta tester in the Spotify developer dashboard before giving them the link. The NFC payload remains only `physical-favourite:<album-id>`, so a card can be used by different SpinStack users without containing anyone's credentials.
+Spotify development-mode apps currently support a small allowlist. Add every beta tester in the Spotify developer dashboard before giving them the link. The NFC payload remains only `physical-favourite:<album-id>`, so a card can be used by different Album DJ users without containing anyone's credentials.
 
 ## Run the tests
 
@@ -65,7 +65,7 @@ Android phone                    Future hardware
       │                                 │
       └──────── album ID ───────────────┘
                      │
-                SpinStack API
+                Album DJ API
                      │
             Spotify Web API playback
                      │

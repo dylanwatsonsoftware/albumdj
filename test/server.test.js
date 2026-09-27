@@ -32,7 +32,7 @@ test("serves the mobile card-scanner interface", async () => {
 
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/html/);
-    assert.match(html, /<title>SpinStack<\/title>/);
+    assert.match(html, /<title>Album DJ<\/title>/);
     assert.match(html, /Choose where to listen/);
     assert.match(html, /Scan an NFC card/);
     assert.match(html, /id="scan-nfc"/);
