@@ -369,12 +369,25 @@ export function createPrototypeHandler(options = {}) {
         });
         if (!trackUris.length) throw new Error("No playable tracks found in this rotation");
         const playerState = player.snapshot();
-        const target = playerState.targets.find(({ id }) => id === playerState.selectedTargetId);
+        let target = playerState.targets.find(({ id }) => id === playerState.selectedTargetId);
         if (!target) throw new Error("Choose an available Spotify device before playing the stack");
-        await spotify.playTracks({
-          deviceId: target.id,
-          trackUris,
-        });
+        try {
+          await spotify.playTracks({ deviceId: target.id, trackUris });
+        } catch (error) {
+          if (error?.status !== 404 || typeof spotify.getAvailableDevices !== "function") throw error;
+
+          const refreshedTargets = await spotify.getAvailableDevices();
+          const refreshedTarget = refreshedTargets.find(({ name }) => name === target.name);
+          if (!refreshedTarget) {
+            throw new Error(`${target.name} is no longer available in Spotify. Open Spotify on that device, then refresh devices.`);
+          }
+
+          player.replaceTargets(refreshedTargets);
+          player.selectTarget(refreshedTarget.id);
+          await persistPlayer();
+          target = refreshedTarget;
+          await spotify.playTracks({ deviceId: target.id, trackUris });
+        }
         return sendJson(response, 200, {
           albumCount: currentRotation.albumIds.length,
           trackCount: trackUris.length,

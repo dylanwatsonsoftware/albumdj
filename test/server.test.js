@@ -689,6 +689,52 @@ test("plays every track from the rotation shelf", async () => {
   }, { spotify, rotation });
 });
 
+test("refreshes a stale Spotify device id and retries stack playback", async () => {
+  const player = createPlayerState({
+    targets: [{ id: "whole-house-old", name: "Whole House", kind: "speaker", isActive: false }],
+    albums: [
+      { id: "discovery", title: "Discovery", artist: "Daft Punk", spotifyUri: "spotify:album:discovery" },
+    ],
+    defaultTargetId: "whole-house-old",
+  });
+  const rotation = {
+    snapshot: () => ({ albumIds: ["discovery"], durationDays: 7, mode: "sequential", expiresAt: 123 }),
+  };
+  const playCommands = [];
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getAlbumTracks: async () => ["spotify:track:discovery-1"],
+    getAvailableDevices: async () => [
+      { id: "whole-house-new", name: "Whole House", kind: "speaker", isActive: true },
+    ],
+    playTracks: async (command) => {
+      playCommands.push(command);
+      if (playCommands.length === 1) {
+        const error = new Error("Spotify rotation playback failed (404): Device not found");
+        error.status = 404;
+        throw error;
+      }
+    },
+  };
+  let playerSaves = 0;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/rotation/play`, { method: "POST" });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).target, { id: "whole-house-new", name: "Whole House" });
+    assert.deepEqual(playCommands.map(({ deviceId }) => deviceId), ["whole-house-old", "whole-house-new"]);
+    assert.equal(player.snapshot().selectedTargetId, "whole-house-new");
+    assert.equal(playerSaves, 1);
+  }, {
+    contextProvider: async () => ({
+      player,
+      rotation,
+      spotify,
+      persistPlayer: async () => { playerSaves += 1; },
+    }),
+  });
+});
+
 test("resolves and persists isolated request contexts", async () => {
   const createContext = (albumId) => {
     const album = { id: albumId, title: albumId, artist: "Artist", spotifyUri: `spotify:album:${albumId}` };

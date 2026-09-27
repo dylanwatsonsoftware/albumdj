@@ -33,6 +33,19 @@ function mapArtist(artist) {
   };
 }
 
+async function spotifyPlaybackError(label, response) {
+  let detail = null;
+  try {
+    const payload = await response.json();
+    detail = typeof payload?.error === "string" ? payload.error : payload?.error?.message;
+  } catch {
+    // Spotify does not always return a JSON body for player errors.
+  }
+  const error = new Error(`${label} (${response.status})${detail ? `: ${detail}` : ""}`);
+  error.status = response.status;
+  return error;
+}
+
 export function createSpotifyClient({
   clientId,
   redirectUri,
@@ -354,7 +367,7 @@ export function createSpotifyClient({
           body: JSON.stringify({ uris: trackUris }),
         },
       );
-      if (!response.ok) throw new Error(`Spotify rotation playback failed (${response.status})`);
+      if (!response.ok) throw await spotifyPlaybackError("Spotify rotation playback failed", response);
     },
   };
 }
