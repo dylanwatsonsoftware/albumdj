@@ -3,6 +3,10 @@ export function moveCoverFlowIndex(currentIndex, delta, albumCount) {
   return Math.max(0, Math.min(albumCount - 1, currentIndex + delta));
 }
 
+export function getCoverFlowHost(section) {
+  return section === "stack" ? "stack" : "home";
+}
+
 function clampCoverFlowPosition(position, albumCount) {
   if (!albumCount) return 0;
   return Math.max(0, Math.min(albumCount - 1, position));

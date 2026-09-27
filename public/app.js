@@ -13,13 +13,14 @@ import {
   createCoverFlowFrameScheduler,
   createCoverFlowReleaseScheduler,
   getCoverFlowDragPosition,
+  getCoverFlowHost,
   getCoverFlowTransform,
   getCoverFlowWindow,
   moveCoverFlowIndex,
   shouldRebuildCoverFlowWindow,
   settleCoverFlowDrag,
 } from "./coverflow.js";
-import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
+import { getRotationAlbumActions, getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
 import {
   artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
@@ -36,6 +37,7 @@ import {
   removeFavouriteArtist,
   removeFavouriteAlbum,
   shouldRequestAutocomplete,
+  sortSavedMusic,
   toggleFavouriteArtist,
   toggleFavouriteAlbum,
 } from "./discovery.js";
@@ -59,6 +61,7 @@ const playbackNextButton = document.querySelector("#playback-next");
 const coverflowElement = document.querySelector("#coverflow");
 const coverflowStage = document.querySelector("#coverflow-stage");
 const coverflowPlayButton = document.querySelector("#coverflow-play");
+const coverflowFavouriteButton = document.querySelector("#coverflow-favourite");
 const coverflowArtistAlbumsButton = document.querySelector("#coverflow-artist-albums");
 const coverflowEmptyAction = document.querySelector("#coverflow-empty-action");
 const coverflowPairButton = document.querySelector("#coverflow-pair");
@@ -95,7 +98,11 @@ const collectionFilterButtons = document.querySelectorAll("[data-collection-filt
 const collectionSummary = document.querySelector("#collection-summary");
 const favouriteArtistsGroup = document.querySelector("#favourite-artists-group");
 const favouriteAlbumsGroup = document.querySelector("#favourite-albums-group");
+const favouriteArtistSort = document.querySelector("#favourite-artist-sort");
+const favouriteAlbumSort = document.querySelector("#favourite-album-sort");
 const stackFilterInput = document.querySelector("#stack-filter");
+const homeCoverflowMount = document.querySelector("#home-coverflow-mount");
+const stackCoverflowMount = document.querySelector("#stack-coverflow-mount");
 const spotifyConnectSection = document.querySelector("#spotify-connect-section");
 
 const cachedUi = readUiCache(globalThis.localStorage);
@@ -220,6 +227,16 @@ function showAppSection(section, { updateHash = true, replaceHash = false } = {}
     const selected = button.dataset.sectionTarget === navigation.activeSection;
     button.setAttribute("aria-selected", String(selected));
   });
+  const coverFlowHost = getCoverFlowHost(navigation.activeSection);
+  const coverFlowMount = coverFlowHost === "stack" ? stackCoverflowMount : homeCoverflowMount;
+  if (coverflowElement.parentElement !== coverFlowMount) {
+    coverFlowMount.append(coverflowElement);
+    coverflowElement.classList.toggle("stack-coverflow", coverFlowHost === "stack");
+    renderedCoverIndexes = [];
+  }
+  if (navigation.activeSection === "home" || navigation.activeSection === "stack") {
+    requestAnimationFrame(() => renderCoverFlow({ preserveWindow: true }));
+  }
   const hash = `#${navigation.activeSection}`;
   if (updateHash && (location.hash !== hash || !history.state?.albumDj)) {
     writeNavigationHistory(history, hash, { replace: replaceHash });
@@ -338,9 +355,11 @@ function renderAlbums() {
     rotationButton.addEventListener("click", () => toggleAlbumInRotation(album.id));
 
     const viewArtistButton = artistAlbumsButton(album, "pair-button artist-card-button");
+    const favourite = favouriteAlbumButton(album);
+    favourite.classList.add("pair-button", "album-card-favourite");
 
     playButton.addEventListener("click", () => scanAlbum(album.id));
-    card.append(playButton, rotationButton);
+    card.append(playButton, rotationButton, favourite);
     if (viewArtistButton) card.append(viewArtistButton);
     card.append(pairButton);
     return card;
@@ -447,6 +466,9 @@ function favouriteAlbumButton(album) {
     persistUiCache();
     renderCollection();
     button.replaceWith(favouriteAlbumButton(album));
+    renderRotation();
+    renderAlbums();
+    renderCoverFlow({ preserveWindow: true });
   });
   return button;
 }
@@ -641,10 +663,13 @@ function renderFavouriteArtists(artists = favouriteArtists) {
 }
 
 function renderCollection() {
-  const view = filterSavedMusic(
-    { artists: favouriteArtists, albums: favouriteAlbums },
-    collectionFilterInput.value,
-    collectionKind,
+  const view = sortSavedMusic(
+    filterSavedMusic(
+      { artists: favouriteArtists, albums: favouriteAlbums },
+      collectionFilterInput.value,
+      collectionKind,
+    ),
+    { artistSort: favouriteArtistSort.value, albumSort: favouriteAlbumSort.value },
   );
   const total = view.artists.length + view.albums.length;
   collectionSummary.textContent = `${total} saved item${total === 1 ? "" : "s"} shown`;
@@ -967,6 +992,8 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
     document.querySelector("#coverflow-previous").disabled = true;
     document.querySelector("#coverflow-next").disabled = true;
     coverflowPlayButton.disabled = true;
+    coverflowFavouriteButton.disabled = true;
+    coverflowFavouriteButton.textContent = "☆ Favourite album";
     coverflowArtistAlbumsButton.hidden = true;
     coverflowPairButton.disabled = true;
     rotationToggleButton.disabled = true;
@@ -1045,6 +1072,11 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
   document.querySelector("#coverflow-previous").disabled = focusedIndex === 0;
   document.querySelector("#coverflow-next").disabled = focusedIndex === albums.length - 1;
   coverflowPlayButton.disabled = false;
+  const favouriteAction = getFavouriteAlbumActionState(favouriteAlbums, activeAlbum);
+  coverflowFavouriteButton.textContent = favouriteAction.label;
+  coverflowFavouriteButton.setAttribute("aria-pressed", String(favouriteAction.isFavourite));
+  coverflowFavouriteButton.classList.toggle("saved", favouriteAction.isFavourite);
+  coverflowFavouriteButton.disabled = !favouriteAction.canAdd;
   coverflowArtistAlbumsButton.hidden = !activeAlbum.artistId;
   coverflowPairButton.disabled = !("NDEFReader" in globalThis);
   rotationToggleButton.disabled = false;
@@ -1174,10 +1206,14 @@ function renderRotation() {
 
     const itemActions = document.createElement("div");
     itemActions.className = "rotation-item-actions";
+    const actions = getRotationAlbumActions();
+    const favourite = actions.includes("favourite") ? favouriteAlbumButton(album) : null;
+    favourite?.classList.add("rotation-favourite");
     const viewArtistButton = artistAlbumsButton(album, "rotation-artist");
 
     playButton.append(artwork, copy);
-    if (viewArtistButton) itemActions.append(viewArtistButton);
+    if (favourite) itemActions.append(favourite);
+    if (actions.includes("artist") && viewArtistButton) itemActions.append(viewArtistButton);
     itemActions.append(removeButton);
     item.append(playButton, itemActions);
     return item;
@@ -1406,6 +1442,8 @@ async function startApp() {
   });
   refreshDevicesButton.addEventListener("click", refreshDevices);
   collectionFilterInput.addEventListener("input", renderCollection);
+  favouriteArtistSort.addEventListener("change", renderCollection);
+  favouriteAlbumSort.addEventListener("change", renderCollection);
   collectionFilterButtons.forEach((button) => button.addEventListener("click", () => {
     collectionKind = button.dataset.collectionFilter;
     renderCollection();
@@ -1417,6 +1455,22 @@ async function startApp() {
   document.querySelector("#coverflow-previous").addEventListener("click", () => moveCoverFlow(-1));
   document.querySelector("#coverflow-next").addEventListener("click", () => moveCoverFlow(1));
   coverflowPlayButton.addEventListener("click", () => scanAlbum(flowAlbums()[activeCoverIndex].id));
+  coverflowFavouriteButton.addEventListener("click", async () => {
+    const album = flowAlbums()[activeCoverIndex];
+    if (!album || !getFavouriteAlbumActionState(favouriteAlbums, album).canAdd) return;
+    coverflowFavouriteButton.disabled = true;
+    favouriteAlbums = toggleFavouriteAlbum(favouriteAlbums, album);
+    favouriteAlbums = await request("/api/favourite-albums", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albums: favouriteAlbums }),
+    });
+    persistUiCache();
+    renderCollection();
+    renderRotation();
+    renderAlbums();
+    renderCoverFlow({ preserveWindow: true });
+  });
   coverflowArtistAlbumsButton.addEventListener("click", () => {
     const album = flowAlbums()[activeCoverIndex];
     if (album) viewAlbumArtist(album, coverflowArtistAlbumsButton);

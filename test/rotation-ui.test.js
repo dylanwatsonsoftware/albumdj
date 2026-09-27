@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "../public/rotation.js";
+import {
+  getRotationAlbumActions,
+  getRotationSlots,
+  removeRotationAlbum,
+  toggleRotationAlbum,
+} from "../public/rotation.js";
 
 test("adds an album to a rotation without duplicating it", () => {
   assert.deepEqual(toggleRotationAlbum(["a"], "b"), ["a", "b"]);
@@ -21,4 +26,8 @@ test("turns the album stack into numbered playable changer slots", () => {
     { albumId: "a", discLabel: "Disc 01", title: "First", artist: "Artist A" },
     { albumId: "b", discLabel: "Disc 02", title: "Second", artist: "Artist B" },
   ]);
+});
+
+test("lets every loaded album be played, favourited, explored, or ejected", () => {
+  assert.deepEqual(getRotationAlbumActions(), ["play", "favourite", "artist", "remove"]);
 });

@@ -16,3 +16,7 @@ export function getRotationSlots(albums) {
     artist: album.artist,
   }));
 }
+
+export function getRotationAlbumActions() {
+  return ["play", "favourite", "artist", "remove"];
+}

@@ -17,6 +17,7 @@ import {
   removeFavouriteArtist,
   removeFavouriteAlbum,
   shouldRequestAutocomplete,
+  sortSavedMusic,
   toggleFavouriteArtist,
   toggleFavouriteAlbum,
 } from "../public/discovery.js";
@@ -54,6 +55,34 @@ test("filters grouped favourite artists and albums without mixing their types", 
     artists: [],
     albums: [albums[2]],
   });
+});
+
+test("sorts favourite artists by name and albums by title, artist, or release date", () => {
+  const saved = {
+    artists: [
+      { id: "joni", name: "Joni Mitchell" },
+      { id: "daft", name: "Daft Punk" },
+    ],
+    albums: [
+      { id: "blue", title: "Blue", artist: "Joni Mitchell", releaseDate: "1971-06-22" },
+      { id: "discovery", title: "Discovery", artist: "Daft Punk", releaseDate: "2001-03-12" },
+      { id: "random", title: "Random Access Memories", artist: "Daft Punk", releaseDate: "2013-05-17" },
+    ],
+  };
+
+  assert.deepEqual(sortSavedMusic(saved, { artistSort: "name-asc", albumSort: "release-desc" }), {
+    artists: [saved.artists[1], saved.artists[0]],
+    albums: [saved.albums[2], saved.albums[1], saved.albums[0]],
+  });
+  assert.deepEqual(
+    sortSavedMusic(saved, { artistSort: "name-desc", albumSort: "artist-asc" }).artists,
+    [saved.artists[0], saved.artists[1]],
+  );
+  assert.deepEqual(
+    sortSavedMusic(saved, { albumSort: "title-desc" }).albums.map(({ id }) => id),
+    ["random", "discovery", "blue"],
+  );
+  assert.deepEqual(saved.albums.map(({ id }) => id), ["blue", "discovery", "random"]);
 });
 
 test("adds and removes a favourite artist without duplicates", () => {

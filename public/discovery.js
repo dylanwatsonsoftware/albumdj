@@ -18,6 +18,36 @@ export function filterSavedMusic({ albums = [], artists = [] }, query, kind = "a
   };
 }
 
+function compareText(left = "", right = "") {
+  return left.localeCompare(right, undefined, { sensitivity: "base" });
+}
+
+export function sortSavedMusic(
+  { albums = [], artists = [] },
+  { artistSort = "name-asc", albumSort = "title-asc" } = {},
+) {
+  const sortedArtists = [...artists].sort((left, right) => {
+    const result = compareText(left.name, right.name);
+    return artistSort === "name-desc" ? -result : result;
+  });
+  const sortedAlbums = [...albums].sort((left, right) => {
+    if (albumSort === "release-desc") {
+      return (right.releaseDate ?? "").localeCompare(left.releaseDate ?? "")
+        || compareText(left.title, right.title);
+    }
+    if (albumSort === "release-asc") {
+      return (left.releaseDate ?? "9999").localeCompare(right.releaseDate ?? "9999")
+        || compareText(left.title, right.title);
+    }
+    if (albumSort === "artist-asc") {
+      return compareText(left.artist, right.artist) || compareText(left.title, right.title);
+    }
+    const result = compareText(left.title, right.title);
+    return albumSort === "title-desc" ? -result : result;
+  });
+  return { artists: sortedArtists, albums: sortedAlbums };
+}
+
 export function toggleFavouriteArtist(artists, artist) {
   return artists.some(({ id }) => id === artist.id)
     ? artists.filter(({ id }) => id !== artist.id)

@@ -5,6 +5,7 @@ import {
   createCoverFlowReleaseScheduler,
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
+  getCoverFlowHost,
   getCoverFlowTransform,
   getCoverFlowWindow,
   moveCoverFlowIndex,
@@ -67,6 +68,12 @@ test("keeps the first album centred at the start of the collection", () => {
     { album: { id: "b" }, index: 1, offset: 1 },
     { album: { id: "c" }, index: 2, offset: 2 },
   ]);
+});
+
+test("places the shared cover flow on the stack page only while that page is active", () => {
+  assert.equal(getCoverFlowHost("stack"), "stack");
+  assert.equal(getCoverFlowHost("home"), "home");
+  assert.equal(getCoverFlowHost("library"), "home");
 });
 
 test("tracks a slow drag as a fractional position between albums", () => {
