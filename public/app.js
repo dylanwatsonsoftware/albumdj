@@ -1,7 +1,7 @@
 import { scanAlbumCards, writeAlbumCard } from "./nfc.js";
 import { refreshSpotifyOnLoad } from "./spotify-sync.js";
 import { createPlaybackMonitor } from "./live-playback.js";
-import { parseApiResponse, startupFailureMessage } from "./startup.js";
+import { loadStartupPreferences, parseApiResponse, startupFailureMessage } from "./startup.js";
 import {
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
@@ -1209,19 +1209,6 @@ async function startApp() {
   coverflowStage.addEventListener("pointerup", finishCoverFlowDrag);
   coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
 
-  const spotifyStatus = await request("/api/spotify/status");
-  spotifyConnected = spotifyStatus.connected;
-  if (spotifyStatus.connected) {
-    try {
-      state = await refreshSpotifyOnLoad({ connected: true, request });
-    } catch (error) {
-      document.querySelector("#destination-status").textContent = error.message;
-    }
-  }
-  rotation = await request("/api/rotation");
-  favouriteArtists = await request("/api/favourite-artists");
-  favouriteAlbums = await request("/api/favourite-albums");
-
   if ("NDEFReader" in globalThis) {
     showNfcStatus("Ready. Start scanning, or pair a blank card to an album.");
   } else {
@@ -1235,17 +1222,46 @@ async function startApp() {
   renderRotation();
   renderFavouriteArtists();
   renderFavouriteAlbums();
-  await loadRecentFavouriteReleases();
+  renderRecentFavouriteReleases();
+  if (state.lastPlayback) showPlayback(state.lastPlayback);
+
+  const preferencesPromise = loadStartupPreferences(request);
+  const spotifyStatus = await request("/api/spotify/status");
+  spotifyConnected = spotifyStatus.connected;
   renderSpotifyStatus(spotifyStatus);
 
-  if (state.lastPlayback) showPlayback(state.lastPlayback);
+  const preferences = await preferencesPromise;
+  rotation = preferences.rotation;
+  favouriteArtists = preferences.favouriteArtists;
+  favouriteAlbums = preferences.favouriteAlbums;
+  renderRotation();
+  renderCoverFlow();
+  renderFavouriteArtists();
+  renderFavouriteAlbums();
+  void loadRecentFavouriteReleases();
 
   if (spotifyStatus.connected) {
     playbackMonitor = createPlaybackMonitor({
       request,
       onPlayback: showLivePlayback,
     });
-    await playbackMonitor.refresh();
+    void playbackMonitor.refresh().catch((error) => {
+      document.querySelector("#playback-mode").textContent = error.message;
+    });
+
+    void refreshSpotifyOnLoad({ connected: true, request })
+      .then(async (refreshedState) => {
+        state = refreshedState;
+        rotation = await request("/api/rotation");
+        renderTargets();
+        renderAlbums();
+        renderCoverFlow();
+        renderRotation();
+        renderSpotifyStatus(spotifyStatus);
+      })
+      .catch((error) => {
+        document.querySelector("#destination-status").textContent = error.message;
+      });
 
     document.addEventListener("visibilitychange", async () => {
       if (document.visibilityState !== "visible") return;

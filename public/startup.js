@@ -22,3 +22,12 @@ export async function parseApiResponse(response) {
 export function startupFailureMessage(error) {
   return `Album DJ couldn’t reach its server. ${error.message}. Refresh to try again.`;
 }
+
+export async function loadStartupPreferences(request) {
+  const [rotation, favouriteArtists, favouriteAlbums] = await Promise.all([
+    request("/api/rotation"),
+    request("/api/favourite-artists"),
+    request("/api/favourite-albums"),
+  ]);
+  return { rotation, favouriteArtists, favouriteAlbums };
+}

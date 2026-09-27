@@ -3,18 +3,31 @@ import assert from "node:assert/strict";
 
 import { refreshSpotifyOnLoad } from "../public/spotify-sync.js";
 
-test("refreshes saved albums and devices when Spotify is connected", async () => {
+test("refreshes saved albums and devices in parallel, then reads coherent state", async () => {
   const calls = [];
-  const request = async (path, options) => {
+  const resolvers = new Map();
+  const request = (path, options) => {
     calls.push([path, options]);
-    return path === "/api/spotify/devices" ? { targets: [{ id: "speaker-1" }] } : {};
+    if (path === "/api/state") return Promise.resolve({ targets: [{ id: "speaker-1" }] });
+    return new Promise((resolve) => resolvers.set(path, resolve));
   };
 
-  const state = await refreshSpotifyOnLoad({ connected: true, request });
+  const refresh = refreshSpotifyOnLoad({ connected: true, request });
+  await Promise.resolve();
 
   assert.deepEqual(calls, [
     ["/api/spotify/import", { method: "POST" }],
     ["/api/spotify/devices", { method: "POST" }],
+  ]);
+
+  resolvers.get("/api/spotify/import")({});
+  resolvers.get("/api/spotify/devices")({});
+  const state = await refresh;
+
+  assert.deepEqual(calls, [
+    ["/api/spotify/import", { method: "POST" }],
+    ["/api/spotify/devices", { method: "POST" }],
+    ["/api/state", undefined],
   ]);
   assert.deepEqual(state, { targets: [{ id: "speaker-1" }] });
 });
