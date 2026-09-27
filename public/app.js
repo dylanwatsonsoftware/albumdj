@@ -20,7 +20,13 @@ import {
   shouldRebuildCoverFlowWindow,
   settleCoverFlowDrag,
 } from "./coverflow.js";
-import { getRotationAlbumActions, getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./rotation.js";
+import {
+  getRotationAlbumActions,
+  getRotationPlaybackMessage,
+  getRotationSlots,
+  removeRotationAlbum,
+  toggleRotationAlbum,
+} from "./rotation.js";
 import {
   artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
@@ -129,6 +135,7 @@ let cachedSearch = { query: "", results: null };
 let spotifyStatus = cachedUi?.spotifyStatus ?? null;
 let spotifyConnected = spotifyStatus?.connected ?? false;
 let collectionKind = "all";
+let rotationPlaybackNotice = null;
 
 const COVER_SPACING = 88;
 const SPOTIFY_LIBRARY_REFRESH_INTERVAL = 6 * 60 * 60 * 1_000;
@@ -1155,9 +1162,9 @@ function renderRotation() {
   rotationDuration.value = String(rotation.durationDays);
   rotationMode.value = rotation.mode;
   rotationPlayButton.disabled = rotation.albumIds.length === 0;
-  document.querySelector("#rotation-status").textContent = rotation.albumIds.length
+  document.querySelector("#rotation-status").textContent = rotationPlaybackNotice ?? (rotation.albumIds.length
     ? `${rotation.albumIds.length} disc${rotation.albumIds.length === 1 ? "" : "s"} loaded · tap one to play · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
-    : "No discs loaded. Find an album and add it to your stack.";
+    : "No discs loaded. Find an album and add it to your stack.");
 
   rotationAlbumsElement.hidden = rotation.albums.length === 0;
   const albumById = new Map(rotation.albums.map((album) => [album.id, album]));
@@ -1221,6 +1228,7 @@ function renderRotation() {
 }
 
 async function saveRotation(albumIds = rotation.albumIds, albums = []) {
+  rotationPlaybackNotice = null;
   rotation = await request("/api/rotation", {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -1257,15 +1265,18 @@ async function toggleAlbumInRotation(albumOrId) {
 async function playRotation() {
   rotationPlayButton.disabled = true;
   rotationPlayButton.textContent = "Building mix…";
+  rotationPlaybackNotice = getRotationPlaybackMessage();
+  document.querySelector("#rotation-status").textContent = rotationPlaybackNotice;
   try {
     const result = await request("/api/rotation/play", { method: "POST" });
-    document.querySelector("#rotation-status").textContent = result.mode === "shuffle"
-      ? `Shuffling ${result.trackCount} songs from ${result.albumCount} albums.`
-      : `Playing ${result.albumCount} albums in order · ${result.trackCount} songs.`;
+    rotationPlaybackNotice = getRotationPlaybackMessage({ result });
     setTimeout(() => playbackMonitor?.refresh(), 800);
+  } catch (error) {
+    rotationPlaybackNotice = getRotationPlaybackMessage({ error });
   } finally {
     rotationPlayButton.disabled = rotation.albumIds.length === 0;
     rotationPlayButton.textContent = "Play stack";
+    renderRotation();
   }
 }
 

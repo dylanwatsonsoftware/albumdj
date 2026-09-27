@@ -673,7 +673,12 @@ test("plays every track from the rotation shelf", async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/rotation/play`, { method: "POST" });
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { albumCount: 2, trackCount: 4, mode: "sequential" });
+    assert.deepEqual(await response.json(), {
+      albumCount: 2,
+      trackCount: 4,
+      mode: "sequential",
+      target: { id: "whole-house", name: "Whole House" },
+    });
     assert.deepEqual(playCommand, {
       deviceId: "whole-house",
       trackUris: [

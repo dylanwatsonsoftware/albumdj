@@ -368,14 +368,18 @@ export function createPrototypeHandler(options = {}) {
           mode: currentRotation.mode,
         });
         if (!trackUris.length) throw new Error("No playable tracks found in this rotation");
+        const playerState = player.snapshot();
+        const target = playerState.targets.find(({ id }) => id === playerState.selectedTargetId);
+        if (!target) throw new Error("Choose an available Spotify device before playing the stack");
         await spotify.playTracks({
-          deviceId: player.snapshot().selectedTargetId,
+          deviceId: target.id,
           trackUris,
         });
         return sendJson(response, 200, {
           albumCount: currentRotation.albumIds.length,
           trackCount: trackUris.length,
           mode: currentRotation.mode,
+          target: { id: target.id, name: target.name },
         });
       }
 

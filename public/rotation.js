@@ -20,3 +20,10 @@ export function getRotationSlots(albums) {
 export function getRotationAlbumActions() {
   return ["play", "favourite", "artist", "remove"];
 }
+
+export function getRotationPlaybackMessage({ result, error } = {}) {
+  if (error) return `Couldn’t play stack. ${error.message}`;
+  if (!result) return "Starting your stack on Spotify…";
+  const action = result.mode === "shuffle" ? "Shuffling" : "Playing";
+  return `${action} ${result.trackCount} songs from ${result.albumCount} albums on ${result.target.name}.`;
+}
