@@ -118,9 +118,10 @@ export function createPrototypeHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/spotify/favourite-artists/releases") {
-        const releasesByArtist = await Promise.all(
-          favouriteArtists.map(({ id }) => spotify.getArtistAlbums(id)),
-        );
+        const releasesByArtist = [];
+        for (const { id } of favouriteArtists) {
+          releasesByArtist.push(await spotify.getRecentArtistAlbums(id));
+        }
         return sendJson(response, 200, selectRecentFavouriteAlbums(releasesByArtist.flat(), { now: now() }));
       }
 

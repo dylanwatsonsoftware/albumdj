@@ -86,6 +86,8 @@ let cachedSearch = { query: "", results: null };
 let spotifyConnected = false;
 
 const COVER_SPACING = 105;
+const SPOTIFY_LIBRARY_REFRESH_INTERVAL = 6 * 60 * 60 * 1_000;
+const SPOTIFY_LIBRARY_REFRESH_KEY = "albumdj:last-spotify-library-refresh";
 const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
   requestFrame: requestAnimationFrame,
   render: (position) => {
@@ -1238,7 +1240,6 @@ async function startApp() {
   renderCoverFlow();
   renderFavouriteArtists();
   renderFavouriteAlbums();
-  void loadRecentFavouriteReleases();
 
   if (spotifyStatus.connected) {
     playbackMonitor = createPlaybackMonitor({
@@ -1249,8 +1250,23 @@ async function startApp() {
       document.querySelector("#playback-mode").textContent = error.message;
     });
 
-    void refreshSpotifyOnLoad({ connected: true, request })
+    let lastLibraryRefresh = 0;
+    try {
+      lastLibraryRefresh = Number(localStorage.getItem(SPOTIFY_LIBRARY_REFRESH_KEY)) || 0;
+    } catch {
+      // A blocked browser store should not prevent Spotify from refreshing.
+    }
+    const refreshAlbums = Date.now() - lastLibraryRefresh >= SPOTIFY_LIBRARY_REFRESH_INTERVAL;
+
+    void refreshSpotifyOnLoad({ connected: true, refreshAlbums, request })
       .then(async (refreshedState) => {
+        if (refreshAlbums) {
+          try {
+            localStorage.setItem(SPOTIFY_LIBRARY_REFRESH_KEY, String(Date.now()));
+          } catch {
+            // The refreshed server state remains usable when browser storage is blocked.
+          }
+        }
         state = refreshedState;
         rotation = await request("/api/rotation");
         renderTargets();
@@ -1258,9 +1274,11 @@ async function startApp() {
         renderCoverFlow();
         renderRotation();
         renderSpotifyStatus(spotifyStatus);
+        await loadRecentFavouriteReleases();
       })
       .catch((error) => {
         document.querySelector("#destination-status").textContent = error.message;
+        void loadRecentFavouriteReleases();
       });
 
     document.addEventListener("visibilitychange", async () => {
@@ -1272,6 +1290,8 @@ async function startApp() {
         document.querySelector("#destination-status").textContent = error.message;
       }
     });
+  } else {
+    void loadRecentFavouriteReleases();
   }
 }
 

@@ -39,6 +39,7 @@ export function createSpotifyClient({
   fetchImpl = fetch,
   randomBytes = secureRandomBytes,
   now = Date.now,
+  sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   sessionStore = { load: () => null, save: () => {} },
   initialSession,
 }) {
@@ -79,11 +80,26 @@ export function createSpotifyClient({
   async function spotifyJson(path) {
     const accessToken = await ensureAccessToken();
     const url = path.startsWith("https://") ? path : `https://api.spotify.com/v1${path}`;
-    const response = await fetchImpl(url, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
-    if (!response.ok) throw new Error(`Spotify API request failed (${response.status})`);
-    return response.json();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetchImpl(url, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (response.ok) return response.json();
+
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryAfterSeconds = Number(retryAfterHeader);
+      if (
+        response.status === 429
+        && attempt === 0
+        && retryAfterHeader !== null
+        && Number.isFinite(retryAfterSeconds)
+      ) {
+        await sleep(Math.max(0, retryAfterSeconds) * 1_000);
+        continue;
+      }
+      throw new Error(`Spotify API request failed (${response.status})`);
+    }
+    throw new Error("Spotify API request failed after retrying");
   }
 
   return {
@@ -186,6 +202,18 @@ export function createSpotifyClient({
       }
       const unique = [...new Map(albums.map((album) => [album.id, album])).values()];
       return unique.map(mapAlbum).sort((left, right) => (right.releaseDate ?? "").localeCompare(left.releaseDate ?? ""));
+    },
+
+    async getRecentArtistAlbums(artistId) {
+      const page = await spotifyJson(
+        `/artists/${encodeURIComponent(artistId)}/albums?include_groups=album&limit=10`,
+      );
+      const unique = [...new Map(
+        page.items.filter(Boolean).map((album) => [album.id, album]),
+      ).values()];
+      return unique.map(mapAlbum).sort(
+        (left, right) => (right.releaseDate ?? "").localeCompare(left.releaseDate ?? ""),
+      );
     },
 
     async getAlbum(albumId) {

@@ -1,8 +1,10 @@
-export async function refreshSpotifyOnLoad({ connected, request }) {
+export async function refreshSpotifyOnLoad({ connected, refreshAlbums = true, request }) {
   if (!connected) return null;
-  await Promise.all([
-    request("/api/spotify/import", { method: "POST" }),
-    request("/api/spotify/devices", { method: "POST" }),
-  ]);
+  const refreshes = [];
+  if (refreshAlbums) {
+    refreshes.push(request("/api/spotify/import", { method: "POST" }));
+  }
+  refreshes.push(request("/api/spotify/devices", { method: "POST" }));
+  await Promise.all(refreshes);
   return request("/api/state");
 }

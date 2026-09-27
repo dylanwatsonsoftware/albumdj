@@ -227,6 +227,90 @@ test("loads an artist's newest unique releases", async () => {
   assert.deepEqual(releases.map(({ id }) => id), ["new", "old"]);
 });
 
+test("loads only the first page when scanning an artist for recent releases", async () => {
+  const requestedUrls = [];
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    fetchImpl: async (url) => {
+      requestedUrls.push(String(url));
+      return Response.json({
+        items: [{
+          id: "new", name: "New", uri: "spotify:album:new",
+          artists: [{ id: "artist-1", name: "Artist" }], images: [], external_urls: {},
+          release_date: "2026-01-01", album_type: "album",
+        }],
+        next: "https://api.spotify.com/v1/artists/artist-1/albums?offset=10&limit=10",
+      });
+    },
+  });
+
+  const releases = await spotify.getRecentArtistAlbums("artist-1");
+
+  assert.equal(requestedUrls.length, 1);
+  assert.equal(new URL(requestedUrls[0]).searchParams.get("include_groups"), "album");
+  assert.deepEqual(releases.map(({ id }) => id), ["new"]);
+});
+
+test("waits for Spotify's Retry-After delay before retrying a rate-limited request", async () => {
+  let attempts = 0;
+  const waits = [];
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    fetchImpl: async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        return Response.json(
+          { error: { status: 429, message: "Too many requests" } },
+          { status: 429, headers: { "retry-after": "2" } },
+        );
+      }
+      return Response.json({
+        id: "album-1", name: "Blue", uri: "spotify:album:album-1",
+        artists: [{ id: "artist-1", name: "Joni Mitchell" }], images: [], external_urls: {},
+        release_date: "1971-06-22", album_type: "album",
+      });
+    },
+  });
+
+  assert.equal((await spotify.getAlbum("album-1")).title, "Blue");
+  assert.equal(attempts, 2);
+  assert.deepEqual(waits, [2_000]);
+});
+
+test("does not immediately retry a 429 without a Retry-After delay", async () => {
+  let attempts = 0;
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    initialSession: {
+      token: { accessToken: "access-123", refreshToken: "refresh-123", expiresAt: Number.MAX_SAFE_INTEGER },
+      profile: { id: "listener", displayName: "Dylan" },
+    },
+    sleep: async () => {},
+    fetchImpl: async () => {
+      attempts += 1;
+      return Response.json(
+        { error: { status: 429, message: "Too many requests", reason: "QUOTA_EXCEEDED" } },
+        { status: 429 },
+      );
+    },
+  });
+
+  await assert.rejects(spotify.getAlbum("album-1"), /429/);
+  assert.equal(attempts, 1);
+});
+
 test("loads one Spotify album for safe playback by id", async () => {
   const spotify = createSpotifyClient({
     clientId: "client-123",

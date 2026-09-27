@@ -165,18 +165,28 @@ test("plays an album found through Spotify search on the selected device", async
 });
 
 test("showcases recent albums from favourite artists", async () => {
+  let activeRequests = 0;
+  let maximumConcurrentRequests = 0;
   const spotify = {
     status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
-    getArtistAlbums: async (artistId) => [
-      { id: `${artistId}-new`, title: "New Album", albumType: "album", releaseDate: "2026-06-01" },
-      { id: `${artistId}-old`, title: "Old Album", albumType: "album", releaseDate: "2024-01-01" },
-    ],
+    getArtistAlbums: async () => { throw new Error("Recent releases should not load a full discography"); },
+    getRecentArtistAlbums: async (artistId) => {
+      activeRequests += 1;
+      maximumConcurrentRequests = Math.max(maximumConcurrentRequests, activeRequests);
+      await Promise.resolve();
+      activeRequests -= 1;
+      return [
+        { id: `${artistId}-new`, title: "New Album", albumType: "album", releaseDate: "2026-06-01" },
+        { id: `${artistId}-old`, title: "Old Album", albumType: "album", releaseDate: "2024-01-01" },
+      ];
+    },
   };
 
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/spotify/favourite-artists/releases`);
     assert.equal(response.status, 200);
     assert.deepEqual((await response.json()).map(({ id }) => id), ["joni-new", "coltrane-new"]);
+    assert.equal(maximumConcurrentRequests, 1);
   }, {
     contextProvider: async () => ({
       player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),

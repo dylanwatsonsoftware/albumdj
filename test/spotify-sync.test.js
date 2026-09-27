@@ -43,3 +43,18 @@ test("leaves demo state alone when Spotify is disconnected", async () => {
   assert.equal(called, false);
   assert.equal(state, null);
 });
+
+test("refreshes devices without reimporting a recently synced album catalogue", async () => {
+  const calls = [];
+  const request = async (path, options) => {
+    calls.push([path, options]);
+    return { targets: [{ id: "speaker-1" }] };
+  };
+
+  await refreshSpotifyOnLoad({ connected: true, refreshAlbums: false, request });
+
+  assert.deepEqual(calls, [
+    ["/api/spotify/devices", { method: "POST" }],
+    ["/api/state", undefined],
+  ]);
+});
