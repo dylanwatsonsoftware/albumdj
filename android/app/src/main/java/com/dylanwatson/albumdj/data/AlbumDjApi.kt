@@ -10,10 +10,11 @@ data class AlbumDjPayload(
     val statusJson: String,
     val rotationJson: String,
     val favouritesJson: String,
+    val artistsJson: String,
     val recentJson: String,
 ) {
     val account: AlbumDjAccount
-        get() = AlbumDjAccountJson.decode(statusJson, rotationJson, favouritesJson, recentJson)
+        get() = AlbumDjAccountJson.decode(statusJson, rotationJson, favouritesJson, artistsJson, recentJson)
 }
 
 class AlbumDjApi(
@@ -23,6 +24,7 @@ class AlbumDjApi(
         statusJson = transport.request("/api/spotify/status", "GET"),
         rotationJson = transport.request("/api/rotation", "GET"),
         favouritesJson = transport.request("/api/favourite-albums", "GET"),
+        artistsJson = transport.request("/api/favourite-artists", "GET"),
         recentJson = transport.request("/api/spotify/favourite-artists/releases", "GET"),
     )
 

@@ -68,6 +68,7 @@ class AlbumDjCache(context: Context) {
             .putString("status", payload.statusJson)
             .putString("rotation", payload.rotationJson)
             .putString("favourites", payload.favouritesJson)
+            .putString("artists", payload.artistsJson)
             .putString("recent", payload.recentJson)
             .apply()
     }
@@ -78,6 +79,7 @@ class AlbumDjCache(context: Context) {
             statusJson = status,
             rotationJson = preferences.getString("rotation", "{}") ?: "{}",
             favouritesJson = preferences.getString("favourites", "[]") ?: "[]",
+            artistsJson = preferences.getString("artists", "[]") ?: "[]",
             recentJson = preferences.getString("recent", "[]") ?: "[]",
         )
     }

@@ -12,6 +12,7 @@ class AlbumDjAccountJsonTest {
             statusJson = """{"connected":true,"profile":{"displayName":"Dylan"}}""",
             rotationJson = """{"albums":[{"id":"stack-1","title":"Discovery","artist":"Daft Punk","imageUrl":"https://img/stack.jpg"}]}""",
             favouritesJson = """[{"id":"fav-1","title":"Blue","artist":"Joni Mitchell"}]""",
+            artistsJson = """[{"id":"artist-1","name":"Joni Mitchell","imageUrl":"https://img/artist.jpg"}]""",
             recentJson = """[{"id":"new-1","title":"Cutouts","artist":"The Smile","releaseDate":"2026-08-01"}]""",
         )
 
@@ -20,6 +21,8 @@ class AlbumDjAccountJsonTest {
         assertEquals(listOf("Discovery"), account.library.children(AlbumDjLibrary.STACK_ID).map { it.title })
         assertEquals(listOf("Blue"), account.library.children(AlbumDjLibrary.FAVOURITES_ID).map { it.title })
         assertEquals(listOf("Cutouts"), account.library.children(AlbumDjLibrary.RECENT_ID).map { it.title })
+        assertEquals(listOf("Joni Mitchell"), account.favouriteArtists.map { it.name })
+        assertEquals("https://img/artist.jpg", account.favouriteArtists.single().imageUrl)
     }
 
     @Test
@@ -28,10 +31,12 @@ class AlbumDjAccountJsonTest {
             statusJson = """{"connected":false,"profile":null}""",
             rotationJson = "{}",
             favouritesJson = "[]",
+            artistsJson = "[]",
             recentJson = "[]",
         )
 
         assertEquals(null, account.profileName)
         assertTrue(account.library.children(AlbumDjLibrary.STACK_ID).isEmpty())
+        assertTrue(account.favouriteArtists.isEmpty())
     }
 }

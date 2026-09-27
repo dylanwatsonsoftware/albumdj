@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumDjRepository
+import com.dylanwatson.albumdj.data.Artist
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
 import kotlinx.coroutines.Dispatchers
@@ -198,7 +199,7 @@ private fun AlbumDjPhone(
             Box(Modifier.weight(1f)) {
                 when (section) {
                     PhoneSection.DISCOVER -> DiscoverScreen(library, { section = PhoneSection.COLLECTION }, { section = PhoneSection.STACK }, playAlbum)
-                    PhoneSection.COLLECTION -> CollectionScreen(library, playAlbum)
+                    PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum)
                     PhoneSection.STACK -> StackScreen(library, playAlbum, playStack)
                     PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, refresh, preview)
                 }
@@ -335,10 +336,23 @@ private fun GatewayCard(label: String, title: String, body: String, action: Stri
 }
 
 @Composable
-private fun CollectionScreen(library: AlbumDjLibrary, playAlbum: (String) -> Unit) {
+private fun CollectionScreen(artists: List<Artist>, library: AlbumDjLibrary, playAlbum: (String) -> Unit) {
     val favourites = albumsForPhoneSection(PhoneSection.COLLECTION, library)
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageIntro("Saved music", "Your collection", "Favourite records together in a fast, visual library.") }
+        item {
+            PageIntro(
+                "Saved music",
+                "Your collection",
+                "${artists.size} favourite artist${if (artists.size == 1) "" else "s"} and ${favourites.size} favourite album${if (favourites.size == 1) "" else "s"}, synced with Album DJ on the web.",
+            )
+        }
+        item { CollectionHeading("Favourite artists") }
+        if (artists.isEmpty()) {
+            item { EmptyCard("No favourite artists yet", "Favourite artists on the web and refresh this app to bring them here.") }
+        } else {
+            item { ArtistShelf(artists) }
+        }
+        item { CollectionHeading("Favourite albums") }
         if (favourites.isEmpty()) {
             item { EmptyCard("No favourite albums yet", "Favourite albums on the web and refresh this app to bring them here.") }
         } else {
@@ -351,6 +365,67 @@ private fun CollectionScreen(library: AlbumDjLibrary, playAlbum: (String) -> Uni
         }
     }
 }
+
+@Composable
+private fun CollectionHeading(title: String) {
+    Text(
+        title,
+        color = Ink,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.ExtraBold,
+        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+    )
+}
+
+@Composable
+private fun ArtistShelf(artists: List<Artist>) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        items(artists, key = { it.id }) { artist ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(94.dp)) {
+                Box(
+                    Modifier.size(88.dp).clip(CircleShape).background(Raised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (artist.imageUrl != null) {
+                        AsyncImage(
+                            model = artist.imageUrl,
+                            contentDescription = artist.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Text(
+                            artist.name.initials(),
+                            color = Acid,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
+                        )
+                    }
+                }
+                Text(
+                    artist.name,
+                    color = Ink,
+                    fontSize = 12.sp,
+                    lineHeight = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun String.initials(): String = trim()
+    .split(Regex("\\s+"))
+    .filter(String::isNotBlank)
+    .take(2)
+    .joinToString("") { it.take(1).uppercase() }
 
 @Composable
 private fun GridAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
@@ -420,9 +495,9 @@ private fun StackScreen(library: AlbumDjLibrary, playAlbum: (String) -> Unit, pl
 @Composable
 private fun SettingsScreen(account: AlbumDjAccount?, connected: Boolean, connect: () -> Unit, refresh: () -> Unit, preview: () -> Unit) {
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageIntro("Setup", "Settings", "Manage your account, refresh Firebase-backed music, and preview Android Auto.") }
+        item { PageIntro("Setup", "Settings", "Manage the same Spotify and Firebase-backed account used by Album DJ on the web.") }
         item {
-            SettingsCard("Spotify account", if (connected) "Connected as ${account?.profileName ?: "Spotify listener"}" else "Connect to your Album DJ account") {
+            SettingsCard("Spotify + Album DJ account", if (connected) "Connected as ${account?.profileName ?: "Spotify listener"}. Your favourite artists, favourite albums, and stack come from this account." else "Sign in through the Album DJ website to connect this app to the same Spotify account and Firebase library.") {
                 Button(onClick = if (connected) refresh else connect, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk)) {
                     Text(if (connected) "Refresh library" else "Connect Spotify", fontWeight = FontWeight.Bold)
                 }

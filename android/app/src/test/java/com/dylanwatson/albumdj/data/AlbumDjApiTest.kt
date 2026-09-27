@@ -12,6 +12,7 @@ class AlbumDjApiTest {
             "/api/spotify/status" to """{"connected":true,"profile":{"displayName":"Dylan"}}""",
             "/api/rotation" to """{"albums":[{"id":"stack","title":"Discovery","artist":"Daft Punk"}]}""",
             "/api/favourite-albums" to "[]",
+            "/api/favourite-artists" to """[{"id":"artist-1","name":"Joni Mitchell"}]""",
             "/api/spotify/favourite-artists/releases" to "[]",
         )
         val api = AlbumDjApi { path, method ->
@@ -22,9 +23,10 @@ class AlbumDjApiTest {
         val payload = api.sync()
 
         assertEquals(responses.keys.toList(), requested.map { it.first })
-        assertEquals(listOf("GET", "GET", "GET", "GET"), requested.map { it.second })
+        assertEquals(listOf("GET", "GET", "GET", "GET", "GET"), requested.map { it.second })
         assertEquals("Dylan", payload.account.profileName)
         assertEquals("Discovery", payload.account.library.children(AlbumDjLibrary.STACK_ID).single().title)
+        assertEquals(listOf("Joni Mitchell"), payload.account.favouriteArtists.map { it.name })
     }
 
     @Test
