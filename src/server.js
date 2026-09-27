@@ -236,7 +236,7 @@ function localAddresses(port) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 8787);
   createPrototypeServer().listen(port, "0.0.0.0", () => {
-    console.log(`StackDeck prototype: http://localhost:${port}`);
+    console.log(`SpinStack prototype: http://localhost:${port}`);
     for (const address of localAddresses(port)) console.log(`Phone: ${address}`);
   });
 }
