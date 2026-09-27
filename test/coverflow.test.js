@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createCoverFlowReleaseScheduler,
   createCoverFlowFrameScheduler,
   getCoverFlowDragPosition,
   getCoverFlowTransform,
@@ -125,6 +126,37 @@ test("coalesces rapid pointer movement into one render per animation frame", () 
 
   frames.shift()();
   assert.deepEqual(renders, [1.3]);
+});
+
+test("waits a frame before settling a released cover so its transform can animate", () => {
+  const frames = [];
+  const settles = [];
+  const schedule = createCoverFlowReleaseScheduler({
+    requestFrame: (callback) => frames.push(callback),
+    settle: () => settles.push("settled"),
+  });
+
+  schedule();
+  assert.equal(frames.length, 1);
+  assert.deepEqual(settles, []);
+
+  frames.shift()();
+  assert.deepEqual(settles, ["settled"]);
+});
+
+test("cancels a pending settle when a new cover drag starts", () => {
+  const frames = [];
+  let settleCount = 0;
+  const schedule = createCoverFlowReleaseScheduler({
+    requestFrame: (callback) => frames.push(callback),
+    settle: () => { settleCount += 1; },
+  });
+
+  schedule();
+  schedule.cancel();
+  frames.shift()();
+
+  assert.equal(settleCount, 0);
 });
 
 test("reuses visible covers until dragging reaches the edge of their window", () => {

@@ -11,6 +11,7 @@ import {
 } from "./startup.js";
 import {
   createCoverFlowFrameScheduler,
+  createCoverFlowReleaseScheduler,
   getCoverFlowDragPosition,
   getCoverFlowTransform,
   getCoverFlowWindow,
@@ -142,6 +143,14 @@ const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
   render: (position) => {
     if (!dragGesture) return;
     dragPosition = position;
+    renderCoverFlow({ preserveWindow: true });
+  },
+});
+const scheduleCoverFlowRelease = createCoverFlowReleaseScheduler({
+  requestFrame: requestAnimationFrame,
+  settle: () => {
+    if (dragGesture) return;
+    dragPosition = null;
     renderCoverFlow({ preserveWindow: true });
   },
 });
@@ -1044,6 +1053,7 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
 
 function beginCoverFlowDrag(event) {
   if ((event.button ?? 0) !== 0 || !flowAlbums().length) return;
+  scheduleCoverFlowRelease.cancel();
   dragGesture = {
     pointerId: event.pointerId,
     startX: event.clientX,
@@ -1086,9 +1096,8 @@ function finishCoverFlowDrag(event) {
     spacing: COVER_SPACING,
   });
   dragGesture = null;
-  dragPosition = null;
   coverflowElement.classList.remove("dragging");
-  renderCoverFlow();
+  scheduleCoverFlowRelease();
 
   if (gesture.moved) {
     suppressCoverClick = true;

@@ -51,6 +51,20 @@ export function createCoverFlowFrameScheduler({ requestFrame, render }) {
   };
 }
 
+export function createCoverFlowReleaseScheduler({ requestFrame, settle }) {
+  let releaseVersion = 0;
+  function schedule() {
+    const version = ++releaseVersion;
+    requestFrame(() => {
+      if (version === releaseVersion) settle();
+    });
+  }
+  schedule.cancel = () => {
+    releaseVersion += 1;
+  };
+  return schedule;
+}
+
 export function shouldRebuildCoverFlowWindow({ renderedIndexes, focusedIndex, albumCount, buffer = 2 }) {
   if (!renderedIndexes.length || !renderedIndexes.includes(focusedIndex)) return true;
   const first = renderedIndexes[0];
