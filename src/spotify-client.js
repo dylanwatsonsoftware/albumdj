@@ -4,8 +4,9 @@ const scopes = [
   "user-library-read",
   "user-read-playback-state",
   "user-modify-playback-state",
+  "playlist-modify-private",
 ];
-const MAX_PLAYBACK_URIS = 100;
+const MAX_PLAYLIST_ITEMS = 100;
 const PLAYER_SETTLE_DELAY_MS = 250;
 
 function base64Url(value) {
@@ -64,9 +65,10 @@ export function createSpotifyClient({
   let pendingAuthorization = restoredSession.pendingAuthorization ?? null;
   let token = restoredSession.token ?? null;
   let profile = restoredSession.profile ?? null;
+  let stackPlaylist = restoredSession.stackPlaylist ?? null;
 
   async function saveSession() {
-    await sessionStore.save({ token, profile, pendingAuthorization });
+    await sessionStore.save({ token, profile, pendingAuthorization, stackPlaylist });
   }
 
   async function ensureAccessToken() {
@@ -89,6 +91,7 @@ export function createSpotifyClient({
       accessToken: payload.access_token,
       refreshToken: payload.refresh_token ?? token.refreshToken,
       expiresAt: now() + payload.expires_in * 1000,
+      scopes: payload.scope ? payload.scope.split(" ") : token.scopes,
     };
     await saveSession();
     return token.accessToken;
@@ -137,7 +140,7 @@ export function createSpotifyClient({
     throw new Error("Spotify API request failed after retrying");
   }
 
-  async function startTrackPlayback({ accessToken, deviceId, trackUris }) {
+  async function startPlayback({ accessToken, deviceId, body }) {
     const url = `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const response = await fetchImpl(url, {
@@ -146,7 +149,7 @@ export function createSpotifyClient({
           authorization: `Bearer ${accessToken}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ uris: trackUris }),
+        body: JSON.stringify(body),
       });
       if (response.ok) return;
       if (response.status >= 500 && attempt === 0) {
@@ -157,13 +160,46 @@ export function createSpotifyClient({
     }
   }
 
-  async function queueTrack({ accessToken, deviceId, trackUri }) {
-    const params = new URLSearchParams({ uri: trackUri, device_id: deviceId });
-    const response = await fetchImpl(`https://api.spotify.com/v1/me/player/queue?${params}`, {
+  async function ensureStackPlaylist(accessToken) {
+    if (stackPlaylist) return stackPlaylist;
+    const response = await fetchImpl("https://api.spotify.com/v1/me/playlists", {
       method: "POST",
-      headers: { authorization: `Bearer ${accessToken}` },
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Album DJ Stack",
+        public: false,
+        description: "Your current Album DJ multi-disc changer stack.",
+      }),
     });
-    if (!response.ok) throw await spotifyPlaybackError("Spotify stack queue failed", response);
+    if (!response.ok) throw await spotifyPlaybackError("Spotify stack playlist setup failed", response);
+    const playlist = await response.json();
+    stackPlaylist = { id: playlist.id, uri: playlist.uri ?? `spotify:playlist:${playlist.id}` };
+    await saveSession();
+    return stackPlaylist;
+  }
+
+  async function writeStackPlaylist({ accessToken, playlistId, trackUris }) {
+    const batches = [];
+    for (let index = 0; index < trackUris.length; index += MAX_PLAYLIST_ITEMS) {
+      batches.push(trackUris.slice(index, index + MAX_PLAYLIST_ITEMS));
+    }
+    for (const [index, uris] of batches.entries()) {
+      const response = await fetchImpl(
+        `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/items`,
+        {
+          method: index === 0 ? "PUT" : "POST",
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ uris }),
+        },
+      );
+      if (!response.ok) throw await spotifyPlaybackError("Spotify stack playlist update failed", response);
+    }
   }
 
   return {
@@ -212,6 +248,7 @@ export function createSpotifyClient({
         accessToken: payload.access_token,
         refreshToken: payload.refresh_token ?? null,
         expiresAt: now() + payload.expires_in * 1000,
+        scopes: payload.scope ? payload.scope.split(" ") : scopes,
       };
       pendingAuthorization = null;
 
@@ -228,6 +265,7 @@ export function createSpotifyClient({
       return {
         configured: Boolean(clientId && redirectUri),
         connected: Boolean(token && profile),
+        playlistAccess: Boolean(token?.scopes?.includes("playlist-modify-private")),
         profile,
       };
     },
@@ -387,19 +425,20 @@ export function createSpotifyClient({
 
     async playTracks({ deviceId, trackUris }) {
       const accessToken = await ensureAccessToken();
-      const overflowCount = Math.max(0, trackUris.length - MAX_PLAYBACK_URIS);
-      const queuedUris = trackUris.slice(1, overflowCount + 1);
-      const playbackUris = queuedUris.length
-        ? [trackUris[0], ...trackUris.slice(overflowCount + 1)]
-        : trackUris;
-
-      await startTrackPlayback({ accessToken, deviceId, trackUris: playbackUris });
-      if (!queuedUris.length) return;
-
-      await sleep(PLAYER_SETTLE_DELAY_MS);
-      for (const trackUri of queuedUris) {
-        await queueTrack({ accessToken, deviceId, trackUri });
+      let playlist = await ensureStackPlaylist(accessToken);
+      try {
+        await writeStackPlaylist({ accessToken, playlistId: playlist.id, trackUris });
+      } catch (error) {
+        if (error?.status !== 404) throw error;
+        stackPlaylist = null;
+        playlist = await ensureStackPlaylist(accessToken);
+        await writeStackPlaylist({ accessToken, playlistId: playlist.id, trackUris });
       }
+      await startPlayback({
+        accessToken,
+        deviceId,
+        body: { context_uri: playlist.uri },
+      });
     },
   };
 }

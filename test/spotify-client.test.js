@@ -22,6 +22,7 @@ test("builds a PKCE authorization URL with the required permissions", async () =
   assert.match(authorizationUrl.searchParams.get("scope"), /user-library-read/);
   assert.match(authorizationUrl.searchParams.get("scope"), /user-read-playback-state/);
   assert.match(authorizationUrl.searchParams.get("scope"), /user-modify-playback-state/);
+  assert.match(authorizationUrl.searchParams.get("scope"), /playlist-modify-private/);
 });
 
 test("rejects an OAuth callback whose state does not match", async () => {
@@ -72,6 +73,7 @@ test("exchanges the code and reports the connected Spotify profile", async () =>
   assert.deepEqual(spotify.status(), {
     configured: true,
     connected: true,
+    playlistAccess: true,
     profile: { id: "listener", displayName: "Dylan" },
   });
 });
@@ -565,12 +567,14 @@ test("loads every track from an album", async () => {
   assert.deepEqual(await spotify.getAlbumTracks("album-1"), ["spotify:track:one", "spotify:track:two"]);
 });
 
-test("starts an explicit rotation of tracks on the selected device", async () => {
+test("builds a private stack playlist and starts it on the selected device", async () => {
   const requests = [];
   const fetchImpl = async (url, options = {}) => {
     requests.push({ url: String(url), options });
     if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
     if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    if (String(url).endsWith("/me/playlists")) return Response.json({ id: "stack-1", uri: "spotify:playlist:stack-1" }, { status: 201 });
+    if (String(url).includes("/playlists/stack-1/items")) return Response.json({ snapshot_id: "snapshot-1" });
     return new Response(null, { status: 204 });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
@@ -579,18 +583,29 @@ test("starts an explicit rotation of tracks on the selected device", async () =>
 
   await spotify.playTracks({ deviceId: "speaker-1", trackUris: ["spotify:track:one", "spotify:track:two"] });
 
-  const request = requests.at(-1);
-  assert.equal(request.url, "https://api.spotify.com/v1/me/player/play?device_id=speaker-1");
-  assert.deepEqual(JSON.parse(request.options.body), { uris: ["spotify:track:one", "spotify:track:two"] });
+  const createRequest = requests.find(({ url }) => url.endsWith("/me/playlists"));
+  assert.deepEqual(JSON.parse(createRequest.options.body), {
+    name: "Album DJ Stack",
+    public: false,
+    description: "Your current Album DJ multi-disc changer stack.",
+  });
+  const replaceRequest = requests.find(({ url }) => url.includes("/playlists/stack-1/items"));
+  assert.equal(replaceRequest.options.method, "PUT");
+  assert.deepEqual(JSON.parse(replaceRequest.options.body), { uris: ["spotify:track:one", "spotify:track:two"] });
+  const playRequest = requests.at(-1);
+  assert.equal(playRequest.url, "https://api.spotify.com/v1/me/player/play?device_id=speaker-1");
+  assert.deepEqual(JSON.parse(playRequest.options.body), { context_uri: "spotify:playlist:stack-1" });
 });
 
-test("plays a stack larger than Spotify's playback batch without dropping tracks", async () => {
+test("writes a large stack to its playlist in 100-track batches", async () => {
   const requests = [];
   const sleeps = [];
   const fetchImpl = async (url, options = {}) => {
     requests.push({ url: String(url), options });
     if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
     if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    if (String(url).endsWith("/me/playlists")) return Response.json({ id: "stack-1", uri: "spotify:playlist:stack-1" }, { status: 201 });
+    if (String(url).includes("/playlists/stack-1/items")) return Response.json({ snapshot_id: "snapshot-1" });
     return new Response(null, { status: 204 });
   };
   const spotify = createSpotifyClient({
@@ -607,17 +622,13 @@ test("plays a stack larger than Spotify's playback batch without dropping tracks
 
   await spotify.playTracks({ deviceId: "speaker-1", trackUris });
 
-  const [startRequest, ...queueRequests] = requests;
-  const startedUris = JSON.parse(startRequest.options.body).uris;
-  assert.equal(startedUris.length, 100);
-  assert.deepEqual(startedUris, [trackUris[0], ...trackUris.slice(18)]);
-  assert.equal(queueRequests.length, 17);
-  assert.deepEqual(
-    queueRequests.map(({ url }) => new URL(url).searchParams.get("uri")),
-    trackUris.slice(1, 18),
-  );
-  assert.ok(queueRequests.every(({ options }) => options.method === "POST"));
-  assert.deepEqual(sleeps, [250]);
+  const itemRequests = requests.filter(({ url }) => url.includes("/playlists/stack-1/items"));
+  assert.equal(itemRequests.length, 2);
+  assert.equal(itemRequests[0].options.method, "PUT");
+  assert.deepEqual(JSON.parse(itemRequests[0].options.body).uris, trackUris.slice(0, 100));
+  assert.equal(itemRequests[1].options.method, "POST");
+  assert.deepEqual(JSON.parse(itemRequests[1].options.body).uris, trackUris.slice(100));
+  assert.deepEqual(sleeps, []);
 });
 
 test("retries one transient Spotify gateway failure when starting a stack", async () => {
@@ -626,6 +637,8 @@ test("retries one transient Spotify gateway failure when starting a stack", asyn
   const fetchImpl = async (url) => {
     if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
     if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    if (String(url).endsWith("/me/playlists")) return Response.json({ id: "stack-1", uri: "spotify:playlist:stack-1" }, { status: 201 });
+    if (String(url).includes("/playlists/stack-1/items")) return Response.json({ snapshot_id: "snapshot-1" });
     playbackAttempts += 1;
     if (playbackAttempts === 1) {
       return Response.json({ error: { status: 502, message: "Bad gateway" } }, { status: 502 });
@@ -652,6 +665,8 @@ test("preserves Spotify playback error details for recovery", async () => {
   const fetchImpl = async (url) => {
     if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
     if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    if (String(url).endsWith("/me/playlists")) return Response.json({ id: "stack-1", uri: "spotify:playlist:stack-1" }, { status: 201 });
+    if (String(url).includes("/playlists/stack-1/items")) return Response.json({ snapshot_id: "snapshot-1" });
     return Response.json({ error: { status: 404, message: "Device not found" } }, { status: 404 });
   };
   const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
@@ -700,6 +715,7 @@ test("restores a connected Spotify session after a server restart", async () => 
   assert.deepEqual(restartedClient.status(), {
     configured: true,
     connected: true,
+    playlistAccess: true,
     profile: { id: "listener", displayName: "Dylan" },
   });
 });

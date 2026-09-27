@@ -142,6 +142,7 @@
           <label>Keep for<select id="rotation-duration"><option value="7">1 week</option><option value="14">2 weeks</option></select></label>
           <label>Play as<select id="rotation-mode"><option value="sequential">Albums in order</option><option value="shuffle">Shuffle every song</option></select></label>
           <button id="rotation-play" class="rotation-play" type="button" disabled>Play stack</button>
+          <a id="rotation-spotify-reconnect" class="rotation-spotify-reconnect" href="/api/auth/spotify" hidden>Reconnect Spotify once to enable stack playback →</a>
           <div id="rotation-albums" class="rotation-albums" role="list" aria-label="Albums loaded in Album DJ" hidden></div>
         </div>
         <div id="albums" class="album-grid" hidden></div>

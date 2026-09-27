@@ -78,6 +78,7 @@ const rotationToggleButton = document.querySelector("#rotation-toggle");
 const rotationDuration = document.querySelector("#rotation-duration");
 const rotationMode = document.querySelector("#rotation-mode");
 const rotationPlayButton = document.querySelector("#rotation-play");
+const rotationSpotifyReconnect = document.querySelector("#rotation-spotify-reconnect");
 const rotationAlbumsElement = document.querySelector("#rotation-albums");
 const searchForm = document.querySelector("#album-search-form");
 const searchInput = document.querySelector("#album-search");
@@ -173,7 +174,7 @@ function renderSpotifyStatus(status) {
   const statusText = document.querySelector("#spotify-status");
   const connectButton = document.querySelector("#spotify-connect-button");
   const connectedBadge = document.querySelector("#spotify-connected-badge");
-  spotifyConnectSection.hidden = Boolean(status.connected);
+  spotifyConnectSection.hidden = Boolean(status.connected && status.playlistAccess !== false);
   connectedBadge.hidden = true;
 
   if (!status.configured) {
@@ -183,6 +184,12 @@ function renderSpotifyStatus(status) {
   }
 
   if (status.connected) {
+    if (status.playlistAccess === false) {
+      statusText.textContent = "Reconnect once to let Album DJ maintain a private playlist for reliable stack playback.";
+      connectButton.innerHTML = "Reconnect Spotify <span>↗</span>";
+      connectButton.hidden = false;
+      return true;
+    }
     statusText.textContent = `Connected as ${status.profile.displayName}. ${state.albums.length} saved albums are ready as cards.`;
     connectButton.hidden = true;
     connectedBadge.hidden = false;
@@ -1162,8 +1169,12 @@ function renderRotation() {
   rotationDuration.value = String(rotation.durationDays);
   rotationMode.value = rotation.mode;
   rotationPlayButton.disabled = rotation.albumIds.length === 0;
+  const needsPlaylistAccess = Boolean(spotifyStatus?.connected && spotifyStatus.playlistAccess === false);
+  rotationSpotifyReconnect.hidden = !needsPlaylistAccess;
   document.querySelector("#rotation-status").textContent = rotationPlaybackNotice ?? (rotation.albumIds.length
-    ? `${rotation.albumIds.length} disc${rotation.albumIds.length === 1 ? "" : "s"} loaded · tap one to play · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
+    ? needsPlaylistAccess
+      ? "Reconnect Spotify once so Album DJ can prepare and play the full stack reliably."
+      : `${rotation.albumIds.length} disc${rotation.albumIds.length === 1 ? "" : "s"} loaded · tap one to play · expires ${new Date(rotation.expiresAt).toLocaleDateString()}`
     : "No discs loaded. Find an album and add it to your stack.");
 
   rotationAlbumsElement.hidden = rotation.albums.length === 0;
@@ -1263,6 +1274,11 @@ async function toggleAlbumInRotation(albumOrId) {
 }
 
 async function playRotation() {
+  if (spotifyStatus?.connected && spotifyStatus.playlistAccess === false) {
+    rotationPlaybackNotice = "Reconnect Spotify once so Album DJ can prepare and play the full stack reliably.";
+    renderRotation();
+    return;
+  }
   rotationPlayButton.disabled = true;
   rotationPlayButton.textContent = "Building mix…";
   rotationPlaybackNotice = getRotationPlaybackMessage();
