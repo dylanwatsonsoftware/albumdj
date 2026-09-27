@@ -101,6 +101,8 @@ class AlbumDjRepository(context: Context) {
 
     fun playAlbum(albumId: String) = api().playAlbum(albumId)
 
+    fun playStack() = api().playStack()
+
     private fun api(): AlbumDjApi {
         val token = sessions.token() ?: error("Connect Spotify first")
         return AlbumDjApi(HttpAlbumDjTransport(token))

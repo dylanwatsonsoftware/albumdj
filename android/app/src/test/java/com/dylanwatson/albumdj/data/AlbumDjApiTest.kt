@@ -39,4 +39,17 @@ class AlbumDjApiTest {
 
         assertEquals(listOf("/api/spotify/albums/an%20album%2Fid/play" to "POST"), requested)
     }
+
+    @Test
+    fun `play stack uses the same multi-disc changer endpoint as the web app`() {
+        val requested = mutableListOf<Pair<String, String>>()
+        val api = AlbumDjApi { path, method ->
+            requested += path to method
+            "{}"
+        }
+
+        api.playStack()
+
+        assertEquals(listOf("/api/rotation/play" to "POST"), requested)
+    }
 }

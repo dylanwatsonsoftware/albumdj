@@ -30,4 +30,8 @@ class AlbumDjApi(
         val encodedId = URLEncoder.encode(albumId, "UTF-8").replace("+", "%20")
         transport.request("/api/spotify/albums/$encodedId/play", "POST")
     }
+
+    fun playStack() {
+        transport.request("/api/rotation/play", "POST")
+    }
 }
