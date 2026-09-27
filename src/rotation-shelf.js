@@ -40,9 +40,28 @@ export function buildRotationQueue({ albumIds, tracksByAlbum, mode, random = Mat
   const queue = albumIds.flatMap((albumId) => tracksByAlbum.get(albumId) ?? []);
   if (mode !== "shuffle") return queue;
 
-  for (let index = queue.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(random() * (index + 1));
-    [queue[index], queue[swapIndex]] = [queue[swapIndex], queue[index]];
+  const pools = albumIds.map((albumId) => ({
+    albumId,
+    tracks: [...(tracksByAlbum.get(albumId) ?? [])],
+  })).filter(({ tracks }) => tracks.length);
+  for (const { tracks } of pools) {
+    for (let index = tracks.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(random() * (index + 1));
+      [tracks[index], tracks[swapIndex]] = [tracks[swapIndex], tracks[index]];
+    }
   }
-  return queue;
+
+  const shuffled = [];
+  let previousAlbumId = null;
+  while (pools.some(({ tracks }) => tracks.length)) {
+    const available = pools.filter(({ tracks }) => tracks.length);
+    const differentAlbums = available.filter(({ albumId }) => albumId !== previousAlbumId);
+    const candidates = differentAlbums.length ? differentAlbums : available;
+    const mostTracks = Math.max(...candidates.map(({ tracks }) => tracks.length));
+    const balancedCandidates = candidates.filter(({ tracks }) => tracks.length === mostTracks);
+    const selected = balancedCandidates[Math.floor(random() * balancedCandidates.length)];
+    shuffled.push(selected.tracks.pop());
+    previousAlbumId = selected.albumId;
+  }
+  return shuffled;
 }

@@ -52,17 +52,17 @@ test("builds album-by-album playback in the selected order", () => {
   assert.deepEqual(queue, ["b1", "b2", "a1", "a2"]);
 });
 
-test("shuffles every track across the selected albums", () => {
-  const randomValues = [0, 0.5, 0];
+test("shuffles every track while moving between albums whenever possible", () => {
   const queue = buildRotationQueue({
     albumIds: ["a", "b"],
     tracksByAlbum: new Map([
-      ["a", ["a1", "a2"]],
-      ["b", ["b1", "b2"]],
+      ["a", ["a1", "a2", "a3"]],
+      ["b", ["b1", "b2", "b3"]],
     ]),
     mode: "shuffle",
-    random: () => randomValues.shift(),
+    random: () => 0,
   });
 
-  assert.deepEqual(queue, ["b1", "b2", "a2", "a1"]);
+  assert.deepEqual([...queue].sort(), ["a1", "a2", "a3", "b1", "b2", "b3"]);
+  assert.equal(queue.every((track, index) => index === 0 || track[0] !== queue[index - 1][0]), true);
 });
