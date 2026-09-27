@@ -4,6 +4,7 @@ import { createPlaybackMonitor } from "./live-playback.js";
 import {
   loadStartupPreferences,
   parseApiResponse,
+  primeCachedRotation,
   readUiCache,
   startupFailureMessage,
   writeUiCache,
@@ -1489,4 +1490,5 @@ async function startApp() {
   }
 }
 
+primeCachedRotation(rotation, renderCoverFlow);
 startApp().catch(showStartupFailure);

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   loadStartupPreferences,
   parseApiResponse,
+  primeCachedRotation,
   readUiCache,
   startupFailureMessage,
   writeUiCache,
@@ -75,4 +76,28 @@ test("persists safe UI data for an immediate reload without storing Spotify cred
 test("ignores an invalid or outdated UI cache", () => {
   assert.equal(readUiCache({ getItem: () => "not json" }), null);
   assert.equal(readUiCache({ getItem: () => JSON.stringify({ version: 0, data: {} }) }), null);
+});
+
+test("restores the lightweight rotation when the full UI cache cannot be written", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => {
+      if (key === "albumdj:ui-cache") throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      values.set(key, value);
+    },
+  };
+  const rotation = { albumIds: ["blue"], albums: [{ id: "blue", title: "Blue" }] };
+
+  writeUiCache(storage, { state: null, rotation, artistAlbums: {} });
+
+  assert.deepEqual(readUiCache(storage), { rotation });
+});
+
+test("primes Cover Flow synchronously when cached rotation albums exist", () => {
+  let renders = 0;
+  assert.equal(primeCachedRotation({ albums: [{ id: "blue" }] }, () => { renders += 1; }), true);
+  assert.equal(renders, 1);
+  assert.equal(primeCachedRotation({ albums: [] }, () => { renders += 1; }), false);
+  assert.equal(renders, 1);
 });

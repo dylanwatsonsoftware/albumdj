@@ -1,21 +1,54 @@
 const UI_CACHE_KEY = "albumdj:ui-cache";
 const UI_CACHE_VERSION = 1;
+const ROTATION_CACHE_KEY = "albumdj:rotation-cache";
 
-export function readUiCache(storage) {
+function readVersionedCache(storage, key) {
   try {
-    const cached = JSON.parse(storage.getItem(UI_CACHE_KEY));
+    const cached = JSON.parse(storage.getItem(key));
     return cached?.version === UI_CACHE_VERSION ? cached.data : null;
   } catch {
     return null;
   }
 }
 
+export function readUiCache(storage) {
+  const cachedUi = readVersionedCache(storage, UI_CACHE_KEY);
+  const cachedRotation = readVersionedCache(storage, ROTATION_CACHE_KEY);
+  if (!cachedUi && !cachedRotation) return null;
+  return cachedRotation ? { ...(cachedUi ?? {}), rotation: cachedRotation } : cachedUi;
+}
+
 export function writeUiCache(storage, data) {
+  const versionedRotation = JSON.stringify({ version: UI_CACHE_VERSION, data: data.rotation });
+  try {
+    storage.setItem(ROTATION_CACHE_KEY, versionedRotation);
+  } catch {
+    try {
+      storage.removeItem?.(UI_CACHE_KEY);
+      storage.setItem(ROTATION_CACHE_KEY, versionedRotation);
+    } catch {
+      // Startup can still fall back to the server when browser storage is full or blocked.
+    }
+  }
+
   try {
     storage.setItem(UI_CACHE_KEY, JSON.stringify({ version: UI_CACHE_VERSION, data }));
   } catch {
-    // Storage can be unavailable in private browsing; the live app remains usable.
+    try {
+      storage.setItem(UI_CACHE_KEY, JSON.stringify({
+        version: UI_CACHE_VERSION,
+        data: { ...data, artistAlbums: {} },
+      }));
+    } catch {
+      // The lightweight rotation remains available even if the richer cache is too large.
+    }
   }
+}
+
+export function primeCachedRotation(rotation, render) {
+  if (!rotation?.albums?.length) return false;
+  render();
+  return true;
 }
 
 export async function parseApiResponse(response) {
