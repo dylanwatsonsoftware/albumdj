@@ -5,6 +5,8 @@ const scopes = [
   "user-read-playback-state",
   "user-modify-playback-state",
 ];
+const MAX_PLAYBACK_URIS = 100;
+const PLAYER_SETTLE_DELAY_MS = 250;
 
 function base64Url(value) {
   return Buffer.from(value).toString("base64url");
@@ -133,6 +135,35 @@ export function createSpotifyClient({
       throw new Error(`Spotify API request failed (${response.status})`);
     }
     throw new Error("Spotify API request failed after retrying");
+  }
+
+  async function startTrackPlayback({ accessToken, deviceId, trackUris }) {
+    const url = `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetchImpl(url, {
+        method: "PUT",
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ uris: trackUris }),
+      });
+      if (response.ok) return;
+      if (response.status >= 500 && attempt === 0) {
+        await sleep(PLAYER_SETTLE_DELAY_MS);
+        continue;
+      }
+      throw await spotifyPlaybackError("Spotify rotation playback failed", response);
+    }
+  }
+
+  async function queueTrack({ accessToken, deviceId, trackUri }) {
+    const params = new URLSearchParams({ uri: trackUri, device_id: deviceId });
+    const response = await fetchImpl(`https://api.spotify.com/v1/me/player/queue?${params}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw await spotifyPlaybackError("Spotify stack queue failed", response);
   }
 
   return {
@@ -356,18 +387,19 @@ export function createSpotifyClient({
 
     async playTracks({ deviceId, trackUris }) {
       const accessToken = await ensureAccessToken();
-      const response = await fetchImpl(
-        `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`,
-        {
-          method: "PUT",
-          headers: {
-            authorization: `Bearer ${accessToken}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({ uris: trackUris }),
-        },
-      );
-      if (!response.ok) throw await spotifyPlaybackError("Spotify rotation playback failed", response);
+      const overflowCount = Math.max(0, trackUris.length - MAX_PLAYBACK_URIS);
+      const queuedUris = trackUris.slice(1, overflowCount + 1);
+      const playbackUris = queuedUris.length
+        ? [trackUris[0], ...trackUris.slice(overflowCount + 1)]
+        : trackUris;
+
+      await startTrackPlayback({ accessToken, deviceId, trackUris: playbackUris });
+      if (!queuedUris.length) return;
+
+      await sleep(PLAYER_SETTLE_DELAY_MS);
+      for (const trackUri of queuedUris) {
+        await queueTrack({ accessToken, deviceId, trackUri });
+      }
     },
   };
 }

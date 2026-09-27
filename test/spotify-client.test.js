@@ -584,6 +584,70 @@ test("starts an explicit rotation of tracks on the selected device", async () =>
   assert.deepEqual(JSON.parse(request.options.body), { uris: ["spotify:track:one", "spotify:track:two"] });
 });
 
+test("plays a stack larger than Spotify's playback batch without dropping tracks", async () => {
+  const requests = [];
+  const sleeps = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url: String(url), options });
+    if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
+    if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    return new Response(null, { status: 204 });
+  };
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    fetchImpl,
+    sleep: async (milliseconds) => { sleeps.push(milliseconds); },
+    randomBytes: () => Buffer.alloc(32, 7),
+  });
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
+  await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
+  requests.length = 0;
+  const trackUris = Array.from({ length: 117 }, (_, index) => `spotify:track:${index + 1}`);
+
+  await spotify.playTracks({ deviceId: "speaker-1", trackUris });
+
+  const [startRequest, ...queueRequests] = requests;
+  const startedUris = JSON.parse(startRequest.options.body).uris;
+  assert.equal(startedUris.length, 100);
+  assert.deepEqual(startedUris, [trackUris[0], ...trackUris.slice(18)]);
+  assert.equal(queueRequests.length, 17);
+  assert.deepEqual(
+    queueRequests.map(({ url }) => new URL(url).searchParams.get("uri")),
+    trackUris.slice(1, 18),
+  );
+  assert.ok(queueRequests.every(({ options }) => options.method === "POST"));
+  assert.deepEqual(sleeps, [250]);
+});
+
+test("retries one transient Spotify gateway failure when starting a stack", async () => {
+  let playbackAttempts = 0;
+  const sleeps = [];
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
+    if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    playbackAttempts += 1;
+    if (playbackAttempts === 1) {
+      return Response.json({ error: { status: 502, message: "Bad gateway" } }, { status: 502 });
+    }
+    return new Response(null, { status: 204 });
+  };
+  const spotify = createSpotifyClient({
+    clientId: "client-123",
+    redirectUri: "https://example.test/callback",
+    fetchImpl,
+    sleep: async (milliseconds) => { sleeps.push(milliseconds); },
+    randomBytes: () => Buffer.alloc(32, 7),
+  });
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
+  await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
+
+  await spotify.playTracks({ deviceId: "speaker-1", trackUris: ["spotify:track:one"] });
+
+  assert.equal(playbackAttempts, 2);
+  assert.deepEqual(sleeps, [250]);
+});
+
 test("preserves Spotify playback error details for recovery", async () => {
   const fetchImpl = async (url) => {
     if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
