@@ -2,7 +2,7 @@
 
 A physical Spotify album changer. Load a temporary stack of favourite albums, pick a Spotify Connect device, then play a disc from the changer UI or by tapping its NFC card.
 
-The phone-friendly web page connects to Spotify, imports saved albums, refreshes available devices, writes album IDs to NFC cards, and plays a paired card when it is scanned. Albums can be browsed with a swipeable, momentum-driven Cover Flow or the full grid. Album DJ keeps a smaller set loaded for one or two weeks: tap any numbered disc slot to play that album, play the complete stack in order, or shuffle every song across it. Its bottom player shows Spotify's real current track and device, polls for changes, and can pause, resume, or skip playback.
+The phone-friendly web page connects to Spotify, imports saved albums, searches Spotify's album catalogue, and keeps a personal shelf of favourite artists and their recent releases. It refreshes available devices, writes album IDs to NFC cards, and plays a paired card when it is scanned. Albums can be browsed with a swipeable, momentum-driven Cover Flow or the full grid. Album DJ keeps a smaller set loaded for one or two weeks: tap any numbered disc slot to play that album, play the complete stack in order, or shuffle every song across it. Its bottom player shows Spotify's real current track and device, polls for changes, and can pause, resume, or skip playback.
 
 ## Try the prototype
 
@@ -77,8 +77,7 @@ The playback state and validation live in `src/player-state.js`. The HTTP server
 ## Planned milestones
 
 1. Confirm NFC writing and scanning on the target Android phone and card type.
-2. Complete the stable Vercel and Firebase production deployment.
-3. Add Home Assistant or Google Cast support for Nest speakers and groups that do not appear through Spotify Connect.
-4. Add PN532 scanning to the ESP32 and send the same API request used by the web prototype.
-5. Render the selected destination, active disc, and album art on the ESP32 display.
-6. Design and print the physical album cards.
+2. Add Home Assistant or Google Cast support for Nest speakers and groups that do not appear through Spotify Connect.
+3. Add PN532 scanning to the ESP32 and send the same API request used by the web prototype.
+4. Render the selected destination, active disc, and album art on the ESP32 display.
+5. Design and print the physical album cards.
