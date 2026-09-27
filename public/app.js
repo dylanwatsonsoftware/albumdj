@@ -15,12 +15,15 @@ import {
   buildAutocompleteSuggestions,
   filterAlbums,
   getArtistInitials,
+  getFavouriteAlbumActionState,
   getFavouriteActionState,
   getResultActions,
   moveSuggestionIndex,
   removeFavouriteArtist,
+  removeFavouriteAlbum,
   shouldRequestAutocomplete,
   toggleFavouriteArtist,
+  toggleFavouriteAlbum,
 } from "./discovery.js";
 
 const targetsElement = document.querySelector("#targets");
@@ -49,6 +52,8 @@ const searchSuggestionsElement = document.querySelector("#search-suggestions");
 const discoveryResultsElement = document.querySelector("#discovery-results");
 const favouriteArtistsElement = document.querySelector("#favourite-artists");
 const favouriteArtistsStatus = document.querySelector("#favourite-artists-status");
+const favouriteAlbumsElement = document.querySelector("#favourite-albums");
+const favouriteAlbumsStatus = document.querySelector("#favourite-albums-status");
 const recentReleasesElement = document.querySelector("#recent-releases");
 const recentReleaseAlbumsElement = document.querySelector("#recent-release-albums");
 
@@ -63,6 +68,7 @@ let dragGesture = null;
 let suppressCoverClick = false;
 let renderedCoverIndexes = [];
 let favouriteArtists = [];
+let favouriteAlbums = [];
 let recentFavouriteAlbums = [];
 let autocompleteSuggestions = [];
 let activeSuggestionIndex = -1;
@@ -265,6 +271,7 @@ function albumResultCard(album) {
     play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
     actions.append(play);
   }
+  if (getResultActions("album").includes("favourite")) actions.append(favouriteAlbumButton(album));
   if (album.spotifyUrl) {
     const spotifyLink = document.createElement("a");
     spotifyLink.href = album.spotifyUrl;
@@ -275,6 +282,86 @@ function albumResultCard(album) {
   }
   card.append(artwork, copy, actions);
   return card;
+}
+
+function favouriteAlbumButton(album) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "favourite-button";
+  const action = getFavouriteAlbumActionState(favouriteAlbums, album);
+  button.textContent = action.label;
+  button.setAttribute("aria-pressed", String(action.isFavourite));
+  button.classList.toggle("saved", action.isFavourite);
+  button.disabled = !action.canAdd;
+  if (!action.canAdd) return button;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    favouriteAlbums = toggleFavouriteAlbum(favouriteAlbums, album);
+    favouriteAlbums = await request("/api/favourite-albums", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albums: favouriteAlbums }),
+    });
+    renderFavouriteAlbums();
+    button.replaceWith(favouriteAlbumButton(album));
+  });
+  return button;
+}
+
+function renderFavouriteAlbums() {
+  favouriteAlbumsStatus.textContent = favouriteAlbums.length
+    ? `${favouriteAlbums.length} album${favouriteAlbums.length === 1 ? "" : "s"} saved · tap one to play.`
+    : "Search for an album, then tap Favourite album.";
+  favouriteAlbumsElement.replaceChildren(...favouriteAlbums.map((album) => {
+    const card = document.createElement("article");
+    card.className = "favourite-album";
+    card.setAttribute("role", "listitem");
+
+    const play = document.createElement("button");
+    play.type = "button";
+    play.className = "favourite-album-play";
+    play.setAttribute("aria-label", `Play ${album.title} by ${album.artist}`);
+    const artwork = document.createElement("span");
+    artwork.className = "favourite-album-art";
+    if (album.imageUrl) {
+      const image = document.createElement("img");
+      image.src = album.imageUrl;
+      image.alt = "";
+      image.loading = "lazy";
+      artwork.append(image);
+    }
+    const copy = document.createElement("span");
+    copy.className = "favourite-album-copy";
+    const title = document.createElement("strong");
+    title.textContent = album.title;
+    const artist = document.createElement("small");
+    artist.textContent = album.artist;
+    copy.append(title, artist);
+    play.append(artwork, copy);
+    play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
+
+    const menu = document.createElement("details");
+    menu.className = "favourite-album-menu";
+    const menuToggle = document.createElement("summary");
+    menuToggle.textContent = "•••";
+    menuToggle.setAttribute("aria-label", `Manage ${album.title}`);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove from favourites";
+    remove.addEventListener("click", async () => {
+      remove.disabled = true;
+      favouriteAlbums = removeFavouriteAlbum(favouriteAlbums, album.id);
+      favouriteAlbums = await request("/api/favourite-albums", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ albums: favouriteAlbums }),
+      });
+      renderFavouriteAlbums();
+    });
+    menu.append(menuToggle, remove);
+    card.append(play, menu);
+    return card;
+  }));
 }
 
 function artistResultCard(artist) {
@@ -1075,6 +1162,7 @@ async function startApp() {
   }
   rotation = await request("/api/rotation");
   favouriteArtists = await request("/api/favourite-artists");
+  favouriteAlbums = await request("/api/favourite-albums");
 
   if ("NDEFReader" in globalThis) {
     showNfcStatus("Ready. Start scanning, or pair a blank card to an album.");
@@ -1088,6 +1176,7 @@ async function startApp() {
   renderCoverFlow();
   renderRotation();
   renderFavouriteArtists();
+  renderFavouriteAlbums();
   await loadRecentFavouriteReleases();
   renderSpotifyStatus(spotifyStatus);
 

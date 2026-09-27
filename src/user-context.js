@@ -42,15 +42,18 @@ export function createUserContextProvider({
       now,
     });
     const favouriteArtists = structuredClone(user?.favouriteArtists ?? []);
+    const favouriteAlbums = structuredClone(user?.favouriteAlbums ?? []);
 
     return {
       player,
       spotify,
       rotation,
       favouriteArtists,
+      favouriteAlbums,
       persistPlayer: () => userStore.savePlayerState(sessionId, player.snapshot()),
       persistRotation: () => userStore.saveRotation(sessionId, rotation.snapshot()),
       persistFavouriteArtists: () => userStore.saveFavouriteArtists(sessionId, favouriteArtists),
+      persistFavouriteAlbums: () => userStore.saveFavouriteAlbums(sessionId, favouriteAlbums),
     };
   };
 }

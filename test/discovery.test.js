@@ -6,11 +6,14 @@ import {
   filterAlbums,
   getArtistInitials,
   getFavouriteActionState,
+  getFavouriteAlbumActionState,
   getResultActions,
   moveSuggestionIndex,
   removeFavouriteArtist,
+  removeFavouriteAlbum,
   shouldRequestAutocomplete,
   toggleFavouriteArtist,
+  toggleFavouriteAlbum,
 } from "../public/discovery.js";
 
 const albums = [
@@ -54,9 +57,26 @@ test("moves through autocomplete suggestions without leaving the list", () => {
   assert.equal(moveSuggestionIndex(0, -1, 3), 2);
 });
 
-test("album results play albums while only artist results offer favourites", () => {
-  assert.deepEqual(getResultActions("album"), ["play"]);
+test("album results can play or be favourited while artist results expose releases", () => {
+  assert.deepEqual(getResultActions("album"), ["play", "favourite"]);
   assert.deepEqual(getResultActions("artist"), ["releases", "favourite"]);
+});
+
+test("adds, recognises, and explicitly removes a favourite album", () => {
+  const blue = { id: "blue", title: "Blue", artist: "Joni Mitchell" };
+  assert.deepEqual(toggleFavouriteAlbum([], blue), [blue]);
+  assert.deepEqual(toggleFavouriteAlbum([blue], blue), []);
+  assert.deepEqual(removeFavouriteAlbum([blue], "blue"), []);
+  assert.deepEqual(getFavouriteAlbumActionState([], blue), {
+    isFavourite: false,
+    label: "☆ Favourite album",
+    canAdd: true,
+  });
+  assert.deepEqual(getFavouriteAlbumActionState([blue], blue), {
+    isFavourite: true,
+    label: "★ Favourited",
+    canAdd: false,
+  });
 });
 
 test("removes a favourite explicitly without toggling a missing artist back in", () => {

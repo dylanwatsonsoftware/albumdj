@@ -56,6 +56,8 @@ export function createPrototypeHandler(options = {}) {
       persistRotation: async () => {},
       favouriteArtists: [],
       persistFavouriteArtists: async () => {},
+      favouriteAlbums: [],
+      persistFavouriteAlbums: async () => {},
     };
   }
   const contextProvider = options.contextProvider ?? (async () => sharedContext);
@@ -90,6 +92,8 @@ export function createPrototypeHandler(options = {}) {
         persistRotation = async () => {},
         favouriteArtists = [],
         persistFavouriteArtists = async () => {},
+        favouriteAlbums = [],
+        persistFavouriteAlbums = async () => {},
       } = context;
 
       if (request.method === "GET" && url.pathname === "/api/state") {
@@ -138,6 +142,26 @@ export function createPrototypeHandler(options = {}) {
         favouriteArtists.splice(0, favouriteArtists.length, ...sanitized);
         await persistFavouriteArtists();
         return sendJson(response, 200, favouriteArtists);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/favourite-albums") {
+        return sendJson(response, 200, favouriteAlbums);
+      }
+
+      if (request.method === "PUT" && url.pathname === "/api/favourite-albums") {
+        const { albums: nextAlbums } = await readJson(request);
+        if (!Array.isArray(nextAlbums)) throw new Error("Favourite albums must be a list");
+        const sanitized = nextAlbums.map((album) => ({
+          id: String(album.id),
+          title: String(album.title),
+          artist: String(album.artist),
+          imageUrl: album.imageUrl || null,
+          spotifyUrl: album.spotifyUrl || null,
+          releaseDate: album.releaseDate || null,
+        }));
+        favouriteAlbums.splice(0, favouriteAlbums.length, ...sanitized);
+        await persistFavouriteAlbums();
+        return sendJson(response, 200, favouriteAlbums);
       }
 
       const discoveredPlayMatch = url.pathname.match(/^\/api\/spotify\/albums\/([^/]+)\/play$/);

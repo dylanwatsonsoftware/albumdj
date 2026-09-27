@@ -19,6 +19,9 @@ test("rehydrates player and rotation state for one browser session only", async 
     saveFavouriteArtists: async (sessionId, favouriteArtists) => {
       records.set(sessionId, { ...records.get(sessionId), sessionId, favouriteArtists });
     },
+    saveFavouriteAlbums: async (sessionId, favouriteAlbums) => {
+      records.set(sessionId, { ...records.get(sessionId), sessionId, favouriteAlbums });
+    },
   };
   const getContext = createUserContextProvider({
     userStore,
@@ -33,6 +36,8 @@ test("rehydrates player and rotation state for one browser session only", async 
   await first.persistRotation();
   first.favouriteArtists.push({ id: "artist-one", name: "Artist One" });
   await first.persistFavouriteArtists();
+  first.favouriteAlbums.push(favourite);
+  await first.persistFavouriteAlbums();
 
   const restored = await getContext("browser-a");
   const otherUser = await getContext("browser-b");
@@ -40,7 +45,9 @@ test("rehydrates player and rotation state for one browser session only", async 
   assert.deepEqual(restored.player.snapshot().albums, [favourite]);
   assert.deepEqual(restored.rotation.snapshot().albumIds, ["favourite"]);
   assert.deepEqual(restored.favouriteArtists, [{ id: "artist-one", name: "Artist One" }]);
+  assert.deepEqual(restored.favouriteAlbums, [favourite]);
   assert.equal(otherUser.player.snapshot().albums.some(({ id }) => id === "favourite"), false);
   assert.deepEqual(otherUser.rotation.snapshot().albumIds, []);
   assert.deepEqual(otherUser.favouriteArtists, []);
+  assert.deepEqual(otherUser.favouriteAlbums, []);
 });

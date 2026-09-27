@@ -54,6 +54,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="search-suggestions"/);
     assert.match(html, /role="listbox"/);
     assert.match(html, /id="favourite-artists"/);
+    assert.match(html, /id="favourite-albums"/);
     assert.match(html, /id="recent-releases"/);
     assert.match(html, /id="recent-release-albums"/);
     assert.match(html, /id="discovery-results"/);
@@ -62,6 +63,35 @@ test("serves the mobile card-scanner interface", async () => {
     const startupModule = await fetch(`${baseUrl}/startup.js`);
     assert.equal(startupModule.status, 200);
     assert.match(startupModule.headers.get("content-type"), /javascript/);
+  });
+});
+
+test("saves and lists favourite albums", async () => {
+  const favouriteAlbums = [];
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/favourite-albums`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albums: [{
+        id: "blue",
+        title: "Blue",
+        artist: "Joni Mitchell",
+        imageUrl: "https://image.test/blue.jpg",
+        spotifyUrl: "https://open.spotify.com/album/blue",
+        releaseDate: "1971-06-22",
+      }] }),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).map(({ id }) => id), ["blue"]);
+    assert.deepEqual((await (await fetch(`${baseUrl}/api/favourite-albums`)).json()).map(({ id }) => id), ["blue"]);
+  }, {
+    contextProvider: async () => ({
+      player: createPlayerState({ targets: [{ id: "speaker" }], albums: [], defaultTargetId: "speaker" }),
+      spotify: disconnectedSpotify,
+      rotation: createRotationShelf({ store: { load: () => null, save: () => {} } }),
+      favouriteAlbums,
+      persistFavouriteAlbums: async () => {},
+    }),
   });
 });
 

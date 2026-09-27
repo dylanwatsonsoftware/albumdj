@@ -277,6 +277,33 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .favourite-heading { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; margin-top: 26px; }
 .favourite-heading h3, .discovery-results > h3 { margin: 0; font-size: 16px; letter-spacing: -.025em; }
 .favourite-heading p { margin: 0; color: var(--muted); font-size: 10px; }
+.album-favourites-heading { margin-top: 22px; }
+.favourite-album-shelf { display: flex; gap: 9px; overflow-x: auto; padding: 10px 0 4px; scroll-snap-type: x proximity; }
+.favourite-album {
+  position: relative;
+  flex: 0 0 210px;
+  min-width: 0;
+  scroll-snap-align: start;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 6px 18px rgba(50,41,25,.06);
+}
+.favourite-album-play { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; border: 0; padding: 9px 38px 9px 9px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.favourite-album-play:disabled { opacity: .55; cursor: wait; }
+.favourite-album-art { width: 64px; height: 64px; overflow: hidden; border-radius: 8px; background: #d8d3c7; }
+.favourite-album-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.favourite-album-copy { min-width: 0; }
+.favourite-album-copy strong, .favourite-album-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.favourite-album-copy strong { font-size: 12px; }
+.favourite-album-copy small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.favourite-album-menu { position: absolute; z-index: 6; top: 7px; right: 7px; }
+.favourite-album-menu summary { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); cursor: pointer; list-style: none; font-size: 10px; letter-spacing: 1px; }
+.favourite-album-menu summary::-webkit-details-marker { display: none; }
+.favourite-album-menu summary:hover, .favourite-album-menu[open] summary { background: #e7e2d6; color: var(--ink); }
+.favourite-album-menu button { position: absolute; top: 32px; right: 0; width: 170px; border: 1px solid var(--ink); border-radius: 8px; padding: 10px; background: var(--ink); color: white; box-shadow: 0 10px 28px rgba(0,0,0,.2); font: 500 8px "DM Mono", monospace; text-align: left; text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
+.favourite-album-menu button:hover { color: var(--acid); }
+.favourite-album-menu button:disabled { opacity: .55; cursor: wait; }
 .artist-shelf { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; padding: 10px 0 4px; }
 .favourite-artist {
   position: relative;

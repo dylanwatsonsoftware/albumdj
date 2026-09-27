@@ -15,12 +15,19 @@ export function createFirebaseUserStore({ firestore }) {
     async load(sessionId) {
       const snapshot = await sessionDocument(sessionId).get();
       if (!snapshot.exists) return null;
-      const { spotifySession = null, playerState = null, rotation = null, favouriteArtists = [] } = snapshot.data();
-      return { sessionId, spotifySession, playerState, rotation, favouriteArtists };
+      const {
+        spotifySession = null,
+        playerState = null,
+        rotation = null,
+        favouriteArtists = [],
+        favouriteAlbums = [],
+      } = snapshot.data();
+      return { sessionId, spotifySession, playerState, rotation, favouriteArtists, favouriteAlbums };
     },
     saveSpotifySession: (sessionId, value) => saveField(sessionId, "spotifySession", value),
     savePlayerState: (sessionId, value) => saveField(sessionId, "playerState", value),
     saveRotation: (sessionId, value) => saveField(sessionId, "rotation", value),
     saveFavouriteArtists: (sessionId, value) => saveField(sessionId, "favouriteArtists", value),
+    saveFavouriteAlbums: (sessionId, value) => saveField(sessionId, "favouriteAlbums", value),
   };
 }

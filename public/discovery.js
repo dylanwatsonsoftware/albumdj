@@ -23,6 +23,25 @@ export function getFavouriteActionState(artists, artist) {
   };
 }
 
+export function toggleFavouriteAlbum(albums, album) {
+  return albums.some(({ id }) => id === album.id)
+    ? albums.filter(({ id }) => id !== album.id)
+    : [...albums, album];
+}
+
+export function removeFavouriteAlbum(albums, albumId) {
+  return albums.filter(({ id }) => id !== albumId);
+}
+
+export function getFavouriteAlbumActionState(albums, album) {
+  const isFavourite = albums.some(({ id }) => id === album.id);
+  return {
+    isFavourite,
+    label: isFavourite ? "★ Favourited" : "☆ Favourite album",
+    canAdd: !isFavourite,
+  };
+}
+
 export function getArtistInitials(name) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => [...part][0] ?? "").join("").toLocaleUpperCase();
 }
@@ -56,5 +75,5 @@ export function moveSuggestionIndex(currentIndex, delta, suggestionCount) {
 }
 
 export function getResultActions(resultType) {
-  return resultType === "artist" ? ["releases", "favourite"] : ["play"];
+  return resultType === "artist" ? ["releases", "favourite"] : ["play", "favourite"];
 }
