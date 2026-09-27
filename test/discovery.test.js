@@ -4,8 +4,11 @@ import assert from "node:assert/strict";
 import {
   buildAutocompleteSuggestions,
   filterAlbums,
+  getArtistInitials,
+  getFavouriteActionState,
   getResultActions,
   moveSuggestionIndex,
+  removeFavouriteArtist,
   shouldRequestAutocomplete,
   toggleFavouriteArtist,
 } from "../public/discovery.js";
@@ -54,4 +57,21 @@ test("moves through autocomplete suggestions without leaving the list", () => {
 test("album results play albums while only artist results offer favourites", () => {
   assert.deepEqual(getResultActions("album"), ["play"]);
   assert.deepEqual(getResultActions("artist"), ["releases", "favourite"]);
+});
+
+test("removes a favourite explicitly without toggling a missing artist back in", () => {
+  const joni = { id: "joni", name: "Joni Mitchell" };
+  assert.deepEqual(removeFavouriteArtist([joni], "joni"), []);
+  assert.deepEqual(removeFavouriteArtist([], "joni"), []);
+});
+
+test("treats an existing favourite as a status instead of a destructive toggle", () => {
+  const joni = { id: "joni", name: "Joni Mitchell" };
+  assert.deepEqual(getFavouriteActionState([], joni), { isFavourite: false, label: "☆ Favourite artist", canAdd: true });
+  assert.deepEqual(getFavouriteActionState([joni], joni), { isFavourite: true, label: "★ Favourited", canAdd: false });
+});
+
+test("creates compact fallback initials for artist cards", () => {
+  assert.equal(getArtistInitials("Joni Mitchell"), "JM");
+  assert.equal(getArtistInitials("Björk"), "B");
 });

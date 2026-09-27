@@ -277,14 +277,36 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .favourite-heading { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; margin-top: 26px; }
 .favourite-heading h3, .discovery-results > h3 { margin: 0; font-size: 16px; letter-spacing: -.025em; }
 .favourite-heading p { margin: 0; color: var(--muted); font-size: 10px; }
-.artist-shelf { display: flex; gap: 8px; overflow-x: auto; padding: 10px 1px 4px; scrollbar-width: thin; }
-.favourite-artist { flex: 0 0 auto; display: flex; align-items: center; overflow: hidden; border: 1px solid var(--ink); border-radius: 999px; background: var(--card); }
-.favourite-artist-open { display: flex; gap: 8px; align-items: center; border: 0; background: transparent; padding: 5px 6px 5px 5px; cursor: pointer; }
-.favourite-artist-open img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
-.favourite-artist-open strong { padding-left: 5px; font-size: 11px; white-space: nowrap; }
-.favourite-artist-open img + strong { padding-left: 0; }
-.favourite-remove { width: 31px; height: 31px; margin-right: 3px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
-.favourite-remove:hover { color: var(--ink); }
+.artist-shelf { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; padding: 10px 0 4px; }
+.favourite-artist {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 90px;
+  padding: 10px 42px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 6px 18px rgba(50,41,25,.06);
+}
+.favourite-artist-art { width: 68px; height: 68px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: var(--ink); color: var(--acid); font: 500 18px "DM Mono", monospace; letter-spacing: .04em; }
+.favourite-artist-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.favourite-artist-copy { min-width: 0; }
+.favourite-artist-copy small, .favourite-artist-copy strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.favourite-artist-copy small { color: #647817; font: 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .09em; }
+.favourite-artist-copy strong { margin-top: 3px; font-size: 13px; }
+.favourite-artist-releases { margin-top: 8px; border: 0; border-bottom: 1px solid var(--ink); padding: 0 0 2px; background: transparent; font: 500 8px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .07em; cursor: pointer; }
+.favourite-artist-releases:disabled { opacity: .5; cursor: wait; }
+.favourite-artist-menu { position: absolute; z-index: 5; top: 8px; right: 8px; }
+.favourite-artist-menu summary { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); cursor: pointer; list-style: none; font-size: 10px; letter-spacing: 1px; }
+.favourite-artist-menu summary::-webkit-details-marker { display: none; }
+.favourite-artist-menu summary:hover, .favourite-artist-menu[open] summary { background: #e7e2d6; color: var(--ink); }
+.favourite-remove { position: absolute; top: 32px; right: 0; width: 170px; border: 1px solid var(--ink); border-radius: 8px; padding: 10px; background: var(--ink); color: white; box-shadow: 0 10px 28px rgba(0,0,0,.2); font: 500 8px "DM Mono", monospace; text-align: left; text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
+.favourite-remove:hover { color: var(--acid); }
+.favourite-remove:disabled { opacity: .55; cursor: wait; }
 .discovery-results { scroll-margin-top: 18px; }
 .discovery-results:empty { display: none; }
 .discovery-results > h3 { margin: 26px 0 10px; }
@@ -302,6 +324,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .discovery-actions .result-play, .discovery-actions .favourite-button { padding: 7px 8px; border-radius: 7px; font-size: 7px; }
 .discovery-actions .favourite-button { background: transparent; color: var(--ink); }
 .discovery-actions .favourite-button[aria-pressed="true"] { border-color: #6a7e1b; background: var(--acid); }
+.discovery-actions .favourite-button.saved:disabled { opacity: 1; cursor: default; }
 .discovery-actions a { color: var(--muted); font: 500 7px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .05em; }
 .discovery-empty { grid-column: 1 / -1; margin: 0; padding: 20px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 11px; text-align: center; }
 

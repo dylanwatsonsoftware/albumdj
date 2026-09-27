@@ -14,8 +14,11 @@ import { getRotationSlots, removeRotationAlbum, toggleRotationAlbum } from "./ro
 import {
   buildAutocompleteSuggestions,
   filterAlbums,
+  getArtistInitials,
+  getFavouriteActionState,
   getResultActions,
   moveSuggestionIndex,
+  removeFavouriteArtist,
   shouldRequestAutocomplete,
   toggleFavouriteArtist,
 } from "./discovery.js";
@@ -207,9 +210,12 @@ function favouriteButton(artist) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "favourite-button";
-  const isFavourite = favouriteArtists.some(({ id }) => id === artist.id);
-  button.textContent = isFavourite ? "★ Favourited" : "☆ Favourite artist";
-  button.setAttribute("aria-pressed", String(isFavourite));
+  const action = getFavouriteActionState(favouriteArtists, artist);
+  button.textContent = action.label;
+  button.setAttribute("aria-pressed", String(action.isFavourite));
+  button.classList.toggle("saved", action.isFavourite);
+  button.disabled = !action.canAdd;
+  if (!action.canAdd) return button;
   button.addEventListener("click", async () => {
     button.disabled = true;
     favouriteArtists = toggleFavouriteArtist(favouriteArtists, artist);
@@ -327,32 +333,53 @@ function renderDiscoveryResults({ heading, albums = [], artists = [] }) {
 
 function renderFavouriteArtists() {
   favouriteArtistsStatus.textContent = favouriteArtists.length
-    ? `${favouriteArtists.length} artist${favouriteArtists.length === 1 ? "" : "s"} saved · choose one to check recent releases.`
+    ? `${favouriteArtists.length} artist${favouriteArtists.length === 1 ? "" : "s"} saved · browse their recent releases.`
     : "Search for an artist, then tap Favourite artist.";
   favouriteArtistsElement.replaceChildren(...favouriteArtists.map((artist) => {
     const card = document.createElement("article");
     card.className = "favourite-artist";
     card.setAttribute("role", "listitem");
-    const open = document.createElement("button");
-    open.type = "button";
-    open.className = "favourite-artist-open";
+
+    const artwork = document.createElement("div");
+    artwork.className = "favourite-artist-art";
     if (artist.imageUrl) {
       const image = document.createElement("img");
       image.src = artist.imageUrl;
       image.alt = "";
-      open.append(image);
+      image.loading = "lazy";
+      artwork.append(image);
+    } else {
+      const initials = document.createElement("span");
+      initials.textContent = getArtistInitials(artist.name);
+      artwork.append(initials);
     }
+
+    const copy = document.createElement("div");
+    copy.className = "favourite-artist-copy";
+    const label = document.createElement("small");
+    label.textContent = "Favourite artist";
     const name = document.createElement("strong");
     name.textContent = artist.name;
-    open.append(name);
-    open.addEventListener("click", () => showArtistReleases(artist, open));
+    const releases = document.createElement("button");
+    releases.type = "button";
+    releases.className = "favourite-artist-releases";
+    releases.textContent = "View releases";
+    releases.addEventListener("click", () => showArtistReleases(artist, releases));
+    copy.append(label, name, releases);
+
+    const menu = document.createElement("details");
+    menu.className = "favourite-artist-menu";
+    const menuToggle = document.createElement("summary");
+    menuToggle.textContent = "•••";
+    menuToggle.setAttribute("aria-label", `Manage ${artist.name}`);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "favourite-remove";
-    remove.textContent = "×";
+    remove.textContent = "Remove from favourites";
     remove.setAttribute("aria-label", `Remove ${artist.name} from favourites`);
     remove.addEventListener("click", async () => {
-      favouriteArtists = toggleFavouriteArtist(favouriteArtists, artist);
+      remove.disabled = true;
+      favouriteArtists = removeFavouriteArtist(favouriteArtists, artist.id);
       favouriteArtists = await request("/api/favourite-artists", {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -360,7 +387,8 @@ function renderFavouriteArtists() {
       });
       renderFavouriteArtists();
     });
-    card.append(open, remove);
+    menu.append(menuToggle, remove);
+    card.append(artwork, copy, menu);
     return card;
   }));
 }

@@ -10,6 +10,23 @@ export function toggleFavouriteArtist(artists, artist) {
     : [...artists, artist];
 }
 
+export function removeFavouriteArtist(artists, artistId) {
+  return artists.filter(({ id }) => id !== artistId);
+}
+
+export function getFavouriteActionState(artists, artist) {
+  const isFavourite = artists.some(({ id }) => id === artist.id);
+  return {
+    isFavourite,
+    label: isFavourite ? "★ Favourited" : "☆ Favourite artist",
+    canAdd: !isFavourite,
+  };
+}
+
+export function getArtistInitials(name) {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => [...part][0] ?? "").join("").toLocaleUpperCase();
+}
+
 export function shouldRequestAutocomplete(query) {
   return query.trim().length >= 2;
 }
