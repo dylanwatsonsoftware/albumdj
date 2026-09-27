@@ -937,3 +937,149 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   .app-navigation button { min-height: 58px; }
   .now-playing { bottom: 78px; }
 }
+
+/* Music-first information architecture */
+[hidden] { display: none !important; }
+
+.discovery-search {
+  margin-bottom: 28px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--card);
+  box-shadow: 0 16px 42px rgba(0,0,0,.24);
+}
+.discovery-search input { border: 0; background: transparent; }
+.discovery-search input:focus { box-shadow: none; }
+.discovery-search > button { min-width: 148px; }
+
+.collection-gateway {
+  margin: 28px 0;
+  padding: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(217,255,67,.09), transparent 35%),
+    var(--card);
+}
+.collection-gateway .step { margin: 0 0 5px; color: var(--success); }
+.collection-gateway h2 { font-size: clamp(22px, 4vw, 32px); }
+.collection-gateway p:last-child { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+.collection-gateway button {
+  flex: none;
+  border: 1px solid var(--acid);
+  border-radius: 999px;
+  padding: 11px 14px;
+  background: var(--acid);
+  color: var(--accent-ink);
+  font: 500 8px "DM Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  cursor: pointer;
+}
+
+.home-stack-hero { margin-top: 38px; }
+.home-coverflow { min-height: 500px; }
+.home-coverflow .coverflow-stage { height: 325px; }
+
+.collection-toolbar {
+  position: sticky;
+  z-index: 30;
+  top: 78px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(25,26,23,.94);
+  box-shadow: 0 14px 35px rgba(0,0,0,.28);
+  backdrop-filter: blur(18px);
+}
+.collection-toolbar > input,
+.stack-filter {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 13px;
+  background: var(--panel);
+  color: var(--ink);
+  font: 600 13px "Manrope", sans-serif;
+  outline: none;
+}
+.collection-toolbar > input:focus,
+.stack-filter:focus { border-color: var(--acid); box-shadow: 0 0 0 2px rgba(217,255,67,.2); }
+.collection-kind-filter { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 11px; }
+.collection-kind-filter button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0 13px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 8px "DM Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+.collection-kind-filter button[aria-pressed="true"] { background: var(--acid); color: var(--accent-ink); }
+.collection-summary { margin: 10px 3px 0; color: var(--muted); font: 8px "DM Mono", monospace; text-transform: uppercase; letter-spacing: .08em; }
+.collection-group { padding: 34px 0 4px; }
+.collection-group + .collection-group { margin-top: 16px; border-top: 1px solid var(--line); }
+.collection-group .favourite-heading { margin-top: 0; }
+.collection-group .favourite-heading h2 { font-size: clamp(22px, 4vw, 30px); }
+
+.collection-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 14px;
+  overflow: visible;
+  padding-top: 14px;
+}
+.collection-album-grid .favourite-album { width: auto; flex: none; }
+.collection-album-grid .favourite-album-play { display: block; padding: 8px 8px 5px; }
+.collection-album-grid .favourite-album-art { width: 100%; height: auto; aspect-ratio: 1; }
+.collection-album-grid .favourite-album-copy { display: block; padding: 9px 2px 5px; }
+.collection-album-grid .favourite-album-copy strong { font-size: 13px; }
+.collection-album-grid .favourite-album-stack { width: calc(100% - 16px); margin: 0 8px 8px; padding: 9px 7px; }
+.collection-album-grid .favourite-album-artist { margin: 0 10px 11px; }
+.collection-group .artist-shelf { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding-top: 14px; }
+
+.stack-filter { max-width: 430px; margin: 0 0 18px; }
+
+.settings-card {
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+}
+.settings-card.spotify-connect { padding: 0; }
+.settings-card .spotify-panel { border: 0; }
+.settings-card-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
+.settings-card-heading .step { margin: 0 0 4px; color: var(--success); }
+.settings-card-heading h2 { font-size: 24px; }
+.settings-card-heading > p { max-width: 330px; margin: 0; color: var(--muted); font-size: 11px; text-align: right; }
+.settings-card .refresh-button { margin: 0 0 14px; }
+.settings-card .target-list { margin: 0; }
+.settings-card .nfc-panel { padding: 0; border: 0; background: transparent; }
+
+@media (max-width: 720px) {
+  .discovery-search { grid-template-columns: 1fr; padding: 6px; }
+  .discovery-search > button { min-height: 44px; }
+  .collection-gateway { align-items: flex-start; flex-direction: column; padding: 18px; }
+  .collection-toolbar { top: 66px; grid-template-columns: 1fr; }
+  .collection-kind-filter button { flex: 1; min-height: 36px; padding: 0 8px; }
+  .collection-album-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .collection-group .artist-shelf { grid-template-columns: 1fr; }
+  .home-stack-hero { margin-top: 30px; }
+  .home-coverflow { min-height: 470px; }
+  .home-coverflow .coverflow-stage { height: 300px; }
+  .settings-card { padding: 16px; }
+  .settings-card-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .settings-card-heading > p { text-align: left; }
+}

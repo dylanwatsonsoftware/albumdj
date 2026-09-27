@@ -33,7 +33,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/html/);
     assert.match(html, /<title>Album DJ<\/title>/);
-    assert.match(html, /<h1 id="destination-heading">Listen on<\/h1>/);
+    assert.match(html, /<h2 id="destination-heading">Listen on<\/h2>/);
     assert.match(html, /Scan an album card/);
     assert.match(html, /id="scan-nfc"/);
     assert.match(html, /id="nfc-status"/);
@@ -75,6 +75,13 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="artist-discography-actions"/);
     assert.match(html, /data-focus-target="album-search"/);
     assert.match(html, /data-focus-target="favourite-artists"/);
+    assert.match(html, /<\/span>Discover<\/button>/);
+    assert.match(html, /<\/span>Collection<\/button>/);
+    assert.match(html, /<\/span>Settings<\/button>/);
+    assert.match(html, /id="collection-filter"/);
+    assert.match(html, /data-collection-filter="artists"/);
+    assert.match(html, /data-collection-filter="albums"/);
+    assert.match(html, /class="[^"]*settings-section[^"]*"/);
 
     const startupModule = await fetch(`${baseUrl}/startup.js`);
     assert.equal(startupModule.status, 200);

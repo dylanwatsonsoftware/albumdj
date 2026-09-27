@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f2eee4">
+    <meta name="theme-color" content="#0d0e0c">
     <title>Album DJ</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
@@ -22,93 +22,62 @@
 
     <main class="shell app-shell">
       <section class="app-section home-section" data-app-section="home" aria-labelledby="home-heading">
-        <div class="page-heading home-heading">
-          <p class="eyebrow">Album DJ · multi-disc changer</p>
-          <h1 id="home-heading">Your album stack</h1>
-          <p>Your hand-picked rotation, ready to flick through and play.</p>
-        </div>
-
-        <section class="home-stack-hero" aria-labelledby="home-stack-heading">
-          <div class="home-stack-toolbar">
-            <div>
-              <p class="step">Now loaded</p>
-              <h2 id="home-stack-heading">Flick through your stack</h2>
-            </div>
-            <button type="button" data-navigate="stack">Manage stack →</button>
+        <div id="library-browser">
+          <div class="page-heading home-heading">
+            <p class="eyebrow">Discover</p>
+            <h1 id="home-heading">Find your next album</h1>
+            <p>Search Spotify, follow artists, save favourite records, and load the albums you want in rotation.</p>
           </div>
-          <div id="coverflow" class="coverflow home-coverflow" tabindex="0" aria-label="Current album stack Cover Flow" data-coverflow-source="rotation">
-            <button id="coverflow-previous" class="flow-arrow previous" type="button" aria-label="Previous album">←</button>
-            <div id="coverflow-stage" class="coverflow-stage"></div>
-            <button id="coverflow-next" class="flow-arrow next" type="button" aria-label="Next album">→</button>
-            <div class="coverflow-details">
-              <p id="coverflow-position" class="coverflow-position"></p>
-              <h3 id="coverflow-title"></h3>
-              <p id="coverflow-artist"></p>
-              <div class="coverflow-actions">
-                <button id="coverflow-empty-action" class="flow-action primary" type="button" data-navigate="library" data-focus-target="album-search" hidden>Find albums</button>
-                <button id="coverflow-play" class="flow-action primary" type="button">Play album</button>
-                <button id="coverflow-artist-albums" class="flow-action" type="button">View artist albums</button>
-                <button id="rotation-toggle" class="flow-action" type="button">Remove from stack</button>
-                <button id="coverflow-pair" class="flow-action" type="button">Pair NFC card</button>
+
+          <form id="album-search-form" class="search-bar discovery-search" role="search">
+            <div class="search-combobox">
+              <input id="album-search" type="search" autocomplete="off" placeholder="Search artists or albums" aria-label="Search albums and artists" role="combobox" aria-autocomplete="list" aria-controls="search-suggestions" aria-expanded="false">
+              <div id="search-suggestions" class="search-suggestions" role="listbox" aria-label="Spotify suggestions" hidden></div>
+            </div>
+            <button type="submit">Search Spotify</button>
+          </form>
+          <div id="discovery-results" class="discovery-results" aria-live="polite"></div>
+
+          <section id="recent-releases" class="recent-releases library-releases" aria-labelledby="recent-releases-heading">
+            <div class="recent-releases-heading">
+              <div><p class="step">From artists you love</p><h3 id="recent-releases-heading">New releases for you</h3></div>
+              <p id="recent-releases-status" role="status">Checking your favourite artists…</p>
+            </div>
+            <div id="recent-release-albums" class="recent-release-albums" role="list" hidden></div>
+          </section>
+
+          <section class="collection-gateway" aria-labelledby="saved-music-heading">
+            <div><p class="step">Your collection</p><h2 id="saved-music-heading">Return to your favourites</h2><p>Browse saved artists and albums together, then filter down quickly.</p></div>
+            <button type="button" data-navigate="library" data-focus-target="favourite-artists">Browse favourite artists →</button>
+          </section>
+
+          <section class="home-stack-hero" aria-labelledby="home-stack-heading">
+            <div class="home-stack-toolbar">
+              <div><p class="step">On your changer</p><h2 id="home-stack-heading">Choose from this stack</h2></div>
+              <button type="button" data-navigate="stack">Manage stack →</button>
+            </div>
+            <div id="coverflow" class="coverflow home-coverflow" tabindex="0" aria-label="Current album stack Cover Flow" data-coverflow-source="rotation">
+              <button id="coverflow-previous" class="flow-arrow previous" type="button" aria-label="Previous album">←</button>
+              <div id="coverflow-stage" class="coverflow-stage"></div>
+              <button id="coverflow-next" class="flow-arrow next" type="button" aria-label="Next album">→</button>
+              <div class="coverflow-details">
+                <p id="coverflow-position" class="coverflow-position"></p>
+                <h3 id="coverflow-title"></h3>
+                <p id="coverflow-artist"></p>
+                <div class="coverflow-actions">
+                  <button id="coverflow-empty-action" class="flow-action primary" type="button" data-navigate="home" data-focus-target="album-search" hidden>Find albums</button>
+                  <button id="coverflow-play" class="flow-action primary" type="button">Play album</button>
+                  <button id="coverflow-artist-albums" class="flow-action" type="button">View artist albums</button>
+                  <button id="rotation-toggle" class="flow-action" type="button">Remove from stack</button>
+                  <button id="coverflow-pair" class="flow-action" type="button" hidden>Pair NFC card</button>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section class="discover-gateways" aria-labelledby="discover-heading">
-          <div class="home-section-heading"><div><p class="step">Build your rotation</p><h2 id="discover-heading">Find something to play</h2></div></div>
-          <div class="discovery-shortcuts">
-            <button type="button" data-navigate="library" data-focus-target="album-search">
-              <span class="shortcut-icon" aria-hidden="true">⌕</span><span><strong>Search albums</strong><small>Find any album or artist on Spotify</small></span><span aria-hidden="true">→</span>
-            </button>
-            <button type="button" data-navigate="library" data-focus-target="favourite-artists">
-              <span class="shortcut-icon" aria-hidden="true">★</span><span><strong>Favourite artists</strong><small>Browse artists you follow and their latest releases</small></span><span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="home-shelf" aria-labelledby="favourite-albums-heading">
-          <div class="home-section-heading shelf-heading">
-            <div><p class="step">Quick play</p><h2 id="favourite-albums-heading">Favourite albums</h2></div>
-            <button type="button" data-navigate="library" data-focus-target="album-search">Find albums →</button>
-          </div>
-          <p id="favourite-albums-status" class="shelf-status">Keep your essential records close.</p>
-          <div id="favourite-albums" class="favourite-album-shelf" role="list"></div>
-        </section>
-
-        <section class="home-scanner" aria-labelledby="scanner-heading">
-          <div class="home-section-heading">
-            <div><p class="step">Physical collection</p><h2 id="scanner-heading">Scan an album card</h2></div>
-            <p>Tap a paired NFC card to your phone to start the album.</p>
-          </div>
-          <div class="nfc-panel">
-            <div><strong>Phone NFC reader</strong><p id="nfc-status" role="status">Checking NFC support…</p></div>
-            <button id="scan-nfc" class="nfc-button" type="button">Start scanning</button>
-          </div>
-        </section>
-
-        <section class="spotify-connect" aria-labelledby="spotify-heading">
-          <div class="spotify-panel">
-            <div class="spotify-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="spotify-copy">
-              <p class="step">Spotify account</p>
-              <h2 id="spotify-heading">Connect Spotify</h2>
-              <p id="spotify-status">Checking connection…</p>
-            </div>
-            <a id="spotify-connect-button" class="connect-button" href="/api/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
-            <span id="spotify-connected-badge" class="connected-badge" hidden>Connected</span>
-          </div>
-        </section>
-      </section>
-
-      <section class="app-section library-section" data-app-section="library" aria-labelledby="discovery-heading" hidden>
-        <div class="page-heading">
-          <p class="eyebrow">Your music</p>
-          <h1 id="discovery-heading">Library</h1>
-          <p>Search Spotify, save favourite albums, and follow artists for new releases.</p>
+          </section>
         </div>
+
         <section id="artist-discography" class="artist-discography" aria-labelledby="artist-discography-title" hidden>
-          <button id="artist-discography-back" class="artist-discography-back" type="button">← Back to Library</button>
+          <button id="artist-discography-back" class="artist-discography-back" type="button">← Back to Discover</button>
           <div class="artist-discography-heading">
             <p class="eyebrow">Artist discography</p>
             <h2 id="artist-discography-title">Albums</h2>
@@ -117,28 +86,31 @@
           </div>
           <div id="artist-discography-albums" class="discovery-grid artist-discography-albums" role="list"></div>
         </section>
-        <div id="library-browser">
-        <form id="album-search-form" class="search-bar" role="search">
-          <div class="search-combobox">
-            <input id="album-search" type="search" autocomplete="off" placeholder="Album or artist" aria-label="Search albums and artists" role="combobox" aria-autocomplete="list" aria-controls="search-suggestions" aria-expanded="false">
-            <div id="search-suggestions" class="search-suggestions" role="listbox" aria-label="Spotify suggestions" hidden></div>
+      </section>
+
+      <section class="app-section library-section" data-app-section="library" aria-labelledby="collection-heading" hidden>
+        <div class="page-heading">
+          <p class="eyebrow">Saved music</p>
+          <h1 id="collection-heading">Your collection</h1>
+          <p>Keep favourite artists and albums together, then filter by name whenever the collection gets busy.</p>
+        </div>
+        <div class="collection-toolbar">
+          <input id="collection-filter" type="search" autocomplete="off" placeholder="Filter your favourites" aria-label="Filter favourite artists and albums">
+          <div class="collection-kind-filter" role="group" aria-label="Filter collection by type">
+            <button type="button" data-collection-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-collection-filter="artists" aria-pressed="false">Artists</button>
+            <button type="button" data-collection-filter="albums" aria-pressed="false">Albums</button>
           </div>
-          <button type="submit">Search Spotify</button>
-        </form>
-        <div id="discovery-results" class="discovery-results" aria-live="polite"></div>
-        <section id="recent-releases" class="recent-releases library-releases" aria-labelledby="recent-releases-heading">
-          <div class="recent-releases-heading">
-            <div><p class="step">Fresh arrivals</p><h3 id="recent-releases-heading">Recently released</h3></div>
-            <p id="recent-releases-status" role="status">Checking your favourite artists…</p>
-          </div>
-          <div id="recent-release-albums" class="recent-release-albums" role="list" hidden></div>
+        </div>
+        <p id="collection-summary" class="collection-summary" aria-live="polite"></p>
+        <section id="favourite-artists-group" class="collection-group" data-collection-kind="artists" aria-labelledby="favourite-artists-heading">
+          <div class="favourite-heading"><h2 id="favourite-artists-heading">Favourite artists</h2><p id="favourite-artists-status">Your shortcut to new releases.</p></div>
+          <div id="favourite-artists" class="artist-shelf" role="list"></div>
         </section>
-        <div class="favourite-heading">
-          <h3>Favourite artists</h3>
-          <p id="favourite-artists-status">Your shortcut to new releases.</p>
-        </div>
-        <div id="favourite-artists" class="artist-shelf" role="list"></div>
-        </div>
+        <section id="favourite-albums-group" class="collection-group" data-collection-kind="albums" aria-labelledby="favourite-albums-heading">
+          <div class="favourite-heading"><h2 id="favourite-albums-heading">Favourite albums</h2><p id="favourite-albums-status">Keep your essential records close.</p></div>
+          <div id="favourite-albums" class="favourite-album-shelf collection-album-grid" role="list"></div>
+        </section>
       </section>
 
       <section class="app-section stack-section" data-app-section="stack" aria-labelledby="stack-heading" hidden>
@@ -151,6 +123,7 @@
           <button id="album-view-rotation" type="button" aria-pressed="true">Loaded albums</button>
           <button id="album-view-grid" type="button" aria-pressed="false">Grid</button>
         </div>
+        <input id="stack-filter" class="stack-filter" type="search" autocomplete="off" placeholder="Filter saved Spotify albums" aria-label="Filter albums available for the stack" hidden>
         <div class="rotation-panel" aria-labelledby="rotation-heading">
           <div><p class="step">Album DJ · multi-disc changer</p><h3 id="rotation-heading">Your album stack</h3><p id="rotation-status">No albums selected.</p></div>
           <label>Keep for<select id="rotation-duration"><option value="7">1 week</option><option value="14">2 weeks</option></select></label>
@@ -161,18 +134,30 @@
         <div id="albums" class="album-grid" hidden></div>
       </section>
 
-      <section class="app-section devices-section" data-app-section="devices" aria-labelledby="destination-heading" hidden>
+      <section class="app-section devices-section settings-section" data-app-section="devices" aria-labelledby="settings-heading" hidden>
         <div class="page-heading">
-          <p class="eyebrow">Playback destination</p>
-          <h1 id="destination-heading">Listen on</h1>
-          <p id="destination-status">Choose an available Spotify Connect device.</p>
+          <p class="eyebrow">Setup</p>
+          <h1 id="settings-heading">Settings</h1>
+          <p>Manage Spotify, NFC cards, and where Album DJ plays.</p>
         </div>
-        <button id="refresh-devices" class="refresh-button" type="button">Refresh devices</button>
-        <div id="targets" class="target-list" role="list"></div>
-        <aside class="device-help">
-          <strong>Missing a Google Nest?</strong>
-          <p>Start Spotify on that speaker or group first, then refresh. Spotify does not expose every Google Cast device through its device API.</p>
-        </aside>
+        <section id="spotify-connect-section" class="spotify-connect settings-card" aria-labelledby="spotify-heading">
+          <div class="spotify-panel">
+            <div class="spotify-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="spotify-copy"><p class="step">Spotify account</p><h2 id="spotify-heading">Connect Spotify</h2><p id="spotify-status">Checking connection…</p></div>
+            <a id="spotify-connect-button" class="connect-button" href="/api/auth/spotify" hidden>Connect Spotify <span>↗</span></a>
+            <span id="spotify-connected-badge" class="connected-badge" hidden>Connected</span>
+          </div>
+        </section>
+        <section class="settings-card" aria-labelledby="scanner-heading">
+          <div class="settings-card-heading"><div><p class="step">Physical cards</p><h2 id="scanner-heading">NFC scanner</h2></div><p>Scan an album card to play it. Pairing controls appear beside individual albums.</p></div>
+          <div class="nfc-panel"><div><strong>Phone NFC reader</strong><p id="nfc-status" role="status">Checking NFC support…</p></div><button id="scan-nfc" class="nfc-button" type="button">Start scanning</button></div>
+        </section>
+        <section class="settings-card" aria-labelledby="destination-heading">
+          <div class="settings-card-heading"><div><p class="step">Playback destination</p><h2 id="destination-heading">Listen on</h2></div><p id="destination-status">Choose an available Spotify Connect device.</p></div>
+          <button id="refresh-devices" class="refresh-button" type="button">Refresh devices</button>
+          <div id="targets" class="target-list" role="list"></div>
+          <aside class="device-help"><strong>Missing a Google Nest?</strong><p>Start Spotify on that speaker or group first, then refresh. Spotify does not expose every Google Cast device through its device API.</p></aside>
+        </section>
       </section>
     </main>
 
@@ -186,10 +171,10 @@
     </aside>
 
     <nav id="app-navigation" class="app-navigation" aria-label="Album DJ sections">
-      <button type="button" data-section-target="home" aria-selected="true"><span aria-hidden="true">⌂</span>Home</button>
-      <button type="button" data-section-target="library" aria-selected="false"><span aria-hidden="true">▤</span>Library</button>
+      <button type="button" data-section-target="home" aria-selected="true"><span aria-hidden="true">⌕</span>Discover</button>
+      <button type="button" data-section-target="library" aria-selected="false"><span aria-hidden="true">▤</span>Collection</button>
       <button type="button" data-section-target="stack" aria-selected="false"><span aria-hidden="true">▱</span>Stack</button>
-      <button type="button" data-section-target="devices" aria-selected="false"><span aria-hidden="true">◉</span>Devices</button>
+      <button type="button" data-section-target="devices" aria-selected="false"><span aria-hidden="true">⚙</span>Settings</button>
     </nav>
 
     <script type="module" src="/app.js"></script>

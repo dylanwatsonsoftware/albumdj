@@ -4,6 +4,20 @@ export function filterAlbums(albums, query) {
   return albums.filter((album) => `${album.title} ${album.artist}`.toLocaleLowerCase().includes(needle));
 }
 
+export function filterSavedMusic({ albums = [], artists = [] }, query, kind = "all") {
+  const needle = query.trim().toLocaleLowerCase();
+  const includeArtists = kind === "all" || kind === "artists";
+  const includeAlbums = kind === "all" || kind === "albums";
+  return {
+    artists: includeArtists
+      ? artists.filter((artist) => !needle || artist.name.toLocaleLowerCase().includes(needle))
+      : [],
+    albums: includeAlbums
+      ? albums.filter((album) => !needle || `${album.title} ${album.artist}`.toLocaleLowerCase().includes(needle))
+      : [],
+  };
+}
+
 export function toggleFavouriteArtist(artists, artist) {
   return artists.some(({ id }) => id === artist.id)
     ? artists.filter(({ id }) => id !== artist.id)
@@ -40,6 +54,10 @@ export function getFavouriteAlbumActionState(albums, album) {
     label: isFavourite ? "★ Favourited" : "☆ Favourite album",
     canAdd: !isFavourite,
   };
+}
+
+export function getFavouriteAlbumCardActions() {
+  return ["play", "rotation", "artist", "remove"];
 }
 
 export function getArtistInitials(name) {

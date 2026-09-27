@@ -25,17 +25,17 @@ test("reads an app section from a URL hash", () => {
   assert.equal(sectionFromHash("#not-a-section"), "home");
 });
 
-test("routes discovery shortcuts to a valid target inside Library", () => {
-  assert.deepEqual(getNavigationIntent("library", "album-search"), {
-    section: "library",
+test("routes shortcuts only to valid targets inside each section", () => {
+  assert.deepEqual(getNavigationIntent("home", "album-search"), {
+    section: "home",
     focusTarget: "album-search",
   });
   assert.deepEqual(getNavigationIntent("library", "favourite-artists"), {
     section: "library",
     focusTarget: "favourite-artists",
   });
-  assert.deepEqual(getNavigationIntent("home", "album-search"), {
-    section: "home",
+  assert.deepEqual(getNavigationIntent("stack", "album-search"), {
+    section: "stack",
     focusTarget: null,
   });
 });

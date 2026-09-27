@@ -5,10 +5,12 @@ import {
   artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
   filterAlbums,
+  filterSavedMusic,
   getArtistInitials,
   getAlbumArtist,
   getFavouriteActionState,
   getFavouriteAlbumActionState,
+  getFavouriteAlbumCardActions,
   getResultActions,
   getRecentReleasesViewState,
   moveSuggestionIndex,
@@ -29,6 +31,29 @@ test("filters saved albums by title or artist without case sensitivity", () => {
   assert.deepEqual(filterAlbums(albums, "JONI").map(({ id }) => id), ["blue", "hejira"]);
   assert.deepEqual(filterAlbums(albums, "covery").map(({ id }) => id), ["discovery"]);
   assert.deepEqual(filterAlbums(albums, "  "), albums);
+});
+
+test("filters grouped favourite artists and albums without mixing their types", () => {
+  const saved = {
+    artists: [
+      { id: "joni", name: "Joni Mitchell" },
+      { id: "daft", name: "Daft Punk" },
+    ],
+    albums,
+  };
+
+  assert.deepEqual(filterSavedMusic(saved, "joni", "all"), {
+    artists: [{ id: "joni", name: "Joni Mitchell" }],
+    albums: albums.slice(0, 2),
+  });
+  assert.deepEqual(filterSavedMusic(saved, "", "artists"), {
+    artists: saved.artists,
+    albums: [],
+  });
+  assert.deepEqual(filterSavedMusic(saved, "discovery", "albums"), {
+    artists: [],
+    albums: [albums[2]],
+  });
 });
 
 test("adds and removes a favourite artist without duplicates", () => {
@@ -111,6 +136,10 @@ test("adds, recognises, and explicitly removes a favourite album", () => {
     label: "★ Favourited",
     canAdd: false,
   });
+});
+
+test("keeps stack loading among the primary actions for a favourite album", () => {
+  assert.deepEqual(getFavouriteAlbumCardActions(), ["play", "rotation", "artist", "remove"]);
 });
 
 test("removes a favourite explicitly without toggling a missing artist back in", () => {

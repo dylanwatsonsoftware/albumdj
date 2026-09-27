@@ -1,5 +1,8 @@
 export const APP_SECTIONS = ["home", "library", "stack", "devices"];
-const LIBRARY_FOCUS_TARGETS = ["album-search", "favourite-artists"];
+const SECTION_FOCUS_TARGETS = {
+  home: ["album-search"],
+  library: ["collection-filter", "favourite-artists", "favourite-albums"],
+};
 
 export function getNavigationState(section) {
   const activeSection = APP_SECTIONS.includes(section) ? section : "home";
@@ -17,7 +20,7 @@ export function getNavigationIntent(section, focusTarget) {
   const activeSection = getNavigationState(section).activeSection;
   return {
     section: activeSection,
-    focusTarget: activeSection === "library" && LIBRARY_FOCUS_TARGETS.includes(focusTarget)
+    focusTarget: SECTION_FOCUS_TARGETS[activeSection]?.includes(focusTarget)
       ? focusTarget
       : null,
   };

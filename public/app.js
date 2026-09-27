@@ -22,9 +22,11 @@ import {
   artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
   filterAlbums,
+  filterSavedMusic,
   getArtistInitials,
   getAlbumArtist,
   getFavouriteAlbumActionState,
+  getFavouriteAlbumCardActions,
   getFavouriteActionState,
   getRecentReleasesViewState,
   getResultActions,
@@ -79,6 +81,13 @@ const artistDiscographyAlbums = document.querySelector("#artist-discography-albu
 const artistDiscographyBack = document.querySelector("#artist-discography-back");
 const appNavigation = document.querySelector("#app-navigation");
 const activeTargetSummary = document.querySelector("#active-target-summary");
+const collectionFilterInput = document.querySelector("#collection-filter");
+const collectionFilterButtons = document.querySelectorAll("[data-collection-filter]");
+const collectionSummary = document.querySelector("#collection-summary");
+const favouriteArtistsGroup = document.querySelector("#favourite-artists-group");
+const favouriteAlbumsGroup = document.querySelector("#favourite-albums-group");
+const stackFilterInput = document.querySelector("#stack-filter");
+const spotifyConnectSection = document.querySelector("#spotify-connect-section");
 
 const cachedUi = readUiCache(globalThis.localStorage);
 let state = cachedUi?.state ?? null;
@@ -103,6 +112,7 @@ let autocompleteRequestNumber = 0;
 let cachedSearch = { query: "", results: null };
 let spotifyStatus = cachedUi?.spotifyStatus ?? null;
 let spotifyConnected = spotifyStatus?.connected ?? false;
+let collectionKind = "all";
 
 const COVER_SPACING = 88;
 const SPOTIFY_LIBRARY_REFRESH_INTERVAL = 6 * 60 * 60 * 1_000;
@@ -132,6 +142,8 @@ function renderSpotifyStatus(status) {
   const statusText = document.querySelector("#spotify-status");
   const connectButton = document.querySelector("#spotify-connect-button");
   const connectedBadge = document.querySelector("#spotify-connected-badge");
+  spotifyConnectSection.hidden = Boolean(status.connected);
+  connectedBadge.hidden = true;
 
   if (!status.configured) {
     statusText.textContent = "Add a Spotify developer Client ID to enable connection.";
@@ -207,7 +219,7 @@ async function refreshDevices() {
 }
 
 function visibleAlbums() {
-  return filterAlbums(state.albums, searchInput.value);
+  return filterAlbums(state.albums, stackFilterInput.value);
 }
 
 function artistAlbumsButton(album, className = "artist-albums-button") {
@@ -247,7 +259,7 @@ function rotationAlbumButton(album) {
 function viewAlbumArtist(album, button) {
   const artist = getAlbumArtist(album);
   if (!artist) return;
-  showAppSection("library");
+  showAppSection("home");
   void showArtistReleases(artist, button);
 }
 
@@ -279,7 +291,7 @@ function renderAlbums() {
     }
     const scanHint = document.createElement("span");
     scanHint.className = "scan-hint";
-    scanHint.textContent = "Tap card";
+    scanHint.textContent = "Play album";
     art.append(scanHint);
 
     const metadata = document.createElement("span");
@@ -337,7 +349,7 @@ function favouriteButton(artist) {
       body: JSON.stringify({ artists: favouriteArtists }),
     });
     persistUiCache();
-    renderFavouriteArtists();
+    renderCollection();
     await loadRecentFavouriteReleases();
     button.replaceWith(favouriteButton(artist));
   });
@@ -412,17 +424,17 @@ function favouriteAlbumButton(album) {
       body: JSON.stringify({ albums: favouriteAlbums }),
     });
     persistUiCache();
-    renderFavouriteAlbums();
+    renderCollection();
     button.replaceWith(favouriteAlbumButton(album));
   });
   return button;
 }
 
-function renderFavouriteAlbums() {
-  favouriteAlbumsStatus.textContent = favouriteAlbums.length
-    ? `${favouriteAlbums.length} album${favouriteAlbums.length === 1 ? "" : "s"} saved · tap one to play.`
-    : "Search for an album, then tap Favourite album.";
-  favouriteAlbumsElement.replaceChildren(...favouriteAlbums.map((album) => {
+function renderFavouriteAlbums(albums = favouriteAlbums) {
+  favouriteAlbumsStatus.textContent = albums.length
+    ? `${albums.length} album${albums.length === 1 ? "" : "s"} shown · tap one to play.`
+    : favouriteAlbums.length ? "No favourite albums match this filter." : "Search for an album, then tap Favourite album.";
+  favouriteAlbumsElement.replaceChildren(...albums.map((album) => {
     const card = document.createElement("article");
     card.className = "favourite-album";
     card.setAttribute("role", "listitem");
@@ -450,7 +462,12 @@ function renderFavouriteAlbums() {
     play.append(artwork, copy);
     play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
 
-    const viewArtistButton = artistAlbumsButton(album, "favourite-album-artist");
+    const actions = getFavouriteAlbumCardActions();
+    const stackButton = actions.includes("rotation") ? rotationAlbumButton(album) : null;
+    stackButton?.classList.add("favourite-album-stack");
+    const viewArtistButton = actions.includes("artist")
+      ? artistAlbumsButton(album, "favourite-album-artist")
+      : null;
 
     const menu = document.createElement("details");
     menu.className = "favourite-album-menu";
@@ -469,10 +486,11 @@ function renderFavouriteAlbums() {
         body: JSON.stringify({ albums: favouriteAlbums }),
       });
       persistUiCache();
-      renderFavouriteAlbums();
+      renderCollection();
     });
     menu.append(menuToggle, remove);
     card.append(play);
+    if (stackButton) card.append(stackButton);
     if (viewArtistButton) card.append(viewArtistButton);
     card.append(menu);
     return card;
@@ -537,11 +555,11 @@ function renderDiscoveryResults({ heading, albums = [], artists = [], emptyMessa
   discoveryResultsElement.replaceChildren(headingElement, list);
 }
 
-function renderFavouriteArtists() {
-  favouriteArtistsStatus.textContent = favouriteArtists.length
-    ? `${favouriteArtists.length} artist${favouriteArtists.length === 1 ? "" : "s"} saved · browse their recent releases.`
-    : "Search for an artist, then tap Favourite artist.";
-  favouriteArtistsElement.replaceChildren(...favouriteArtists.map((artist) => {
+function renderFavouriteArtists(artists = favouriteArtists) {
+  favouriteArtistsStatus.textContent = artists.length
+    ? `${artists.length} artist${artists.length === 1 ? "" : "s"} shown · browse their albums.`
+    : favouriteArtists.length ? "No favourite artists match this filter." : "Search for an artist, then tap Favourite artist.";
+  favouriteArtistsElement.replaceChildren(...artists.map((artist) => {
     const card = document.createElement("article");
     card.className = "favourite-artist";
     card.setAttribute("role", "listitem");
@@ -592,13 +610,30 @@ function renderFavouriteArtists() {
         body: JSON.stringify({ artists: favouriteArtists }),
       });
       persistUiCache();
-      renderFavouriteArtists();
+      renderCollection();
       await loadRecentFavouriteReleases();
     });
     menu.append(menuToggle, remove);
     card.append(artwork, copy, menu);
     return card;
   }));
+}
+
+function renderCollection() {
+  const view = filterSavedMusic(
+    { artists: favouriteArtists, albums: favouriteAlbums },
+    collectionFilterInput.value,
+    collectionKind,
+  );
+  const total = view.artists.length + view.albums.length;
+  collectionSummary.textContent = `${total} saved item${total === 1 ? "" : "s"} shown`;
+  favouriteArtistsGroup.hidden = collectionKind === "albums";
+  favouriteAlbumsGroup.hidden = collectionKind === "artists";
+  collectionFilterButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.collectionFilter === collectionKind));
+  });
+  renderFavouriteArtists(view.artists);
+  renderFavouriteAlbums(view.albums);
 }
 
 function formatReleaseDate(releaseDate) {
@@ -643,6 +678,7 @@ function recentReleaseCard(album) {
   play.textContent = "Play album";
   play.addEventListener("click", () => playDiscoveredAlbum(album.id, play));
   actions.append(play);
+  actions.append(rotationAlbumButton(album), favouriteAlbumButton(album));
   const viewArtistButton = artistAlbumsButton(album, "recent-artist-albums");
   if (viewArtistButton) actions.append(viewArtistButton);
   if (album.spotifyUrl) {
@@ -834,6 +870,7 @@ async function searchSpotify(event) {
 async function showArtistReleases(artist, button) {
   button.disabled = true;
   const originalText = button.textContent;
+  showAppSection("home");
   libraryBrowser.hidden = true;
   artistDiscography.hidden = false;
   artistDiscographyTitle.textContent = artist.name;
@@ -1038,6 +1075,7 @@ function setAlbumView(view) {
   const showRotation = view !== "grid";
   albumsElement.hidden = showRotation;
   rotationPanelElement.hidden = !showRotation;
+  stackFilterInput.hidden = showRotation;
   rotationViewButton.setAttribute("aria-pressed", String(view === "rotation"));
   gridViewButton.setAttribute("aria-pressed", String(view === "grid"));
 }
@@ -1284,6 +1322,7 @@ async function skipNext() {
 }
 
 function showStartupFailure(error) {
+  spotifyConnectSection.hidden = false;
   document.querySelector("#spotify-status").textContent = startupFailureMessage(error);
   document.querySelector("#spotify-connect-button").hidden = true;
   document.querySelector("#spotify-connected-badge").hidden = true;
@@ -1313,8 +1352,6 @@ async function startApp() {
   window.addEventListener("hashchange", () => showAppSection(sectionFromHash(location.hash), { updateHash: false }));
   showAppSection(sectionFromHash(location.hash), { updateHash: false });
   searchInput.addEventListener("input", () => {
-    activeCoverIndex = 0;
-    renderAlbums();
     scheduleAutocomplete();
   });
   searchInput.addEventListener("keydown", handleAutocompleteKeydown);
@@ -1323,6 +1360,12 @@ async function startApp() {
     if (!searchForm.contains(event.target)) closeAutocomplete();
   });
   refreshDevicesButton.addEventListener("click", refreshDevices);
+  collectionFilterInput.addEventListener("input", renderCollection);
+  collectionFilterButtons.forEach((button) => button.addEventListener("click", () => {
+    collectionKind = button.dataset.collectionFilter;
+    renderCollection();
+  }));
+  stackFilterInput.addEventListener("input", renderAlbums);
   scanNfcButton.addEventListener("click", startNfcScan);
   playbackToggleButton.addEventListener("click", togglePlayback);
   playbackNextButton.addEventListener("click", skipNext);
@@ -1367,8 +1410,7 @@ async function startApp() {
   renderAlbums();
   renderCoverFlow();
   renderRotation();
-  renderFavouriteArtists();
-  renderFavouriteAlbums();
+  renderCollection();
   renderRecentFavouriteReleases();
   if (spotifyStatus) renderSpotifyStatus(spotifyStatus);
   if (state.lastPlayback) showPlayback(state.lastPlayback);
@@ -1392,8 +1434,7 @@ async function startApp() {
   renderAlbums();
   renderRotation();
   renderCoverFlow();
-  renderFavouriteArtists();
-  renderFavouriteAlbums();
+  renderCollection();
   persistUiCache();
   void loadRecentFavouriteReleases();
 
