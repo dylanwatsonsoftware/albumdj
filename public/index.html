@@ -106,6 +106,16 @@
           <h1 id="discovery-heading">Library</h1>
           <p>Search Spotify, save favourite albums, and follow artists for new releases.</p>
         </div>
+        <section id="artist-discography" class="artist-discography" aria-labelledby="artist-discography-title" hidden>
+          <button id="artist-discography-back" class="artist-discography-back" type="button">← Back to Library</button>
+          <div class="artist-discography-heading">
+            <p class="eyebrow">Artist discography</p>
+            <h2 id="artist-discography-title">Albums</h2>
+            <p id="artist-discography-status" role="status">Loading albums…</p>
+          </div>
+          <div id="artist-discography-albums" class="discovery-grid artist-discography-albums" role="list"></div>
+        </section>
+        <div id="library-browser">
         <form id="album-search-form" class="search-bar" role="search">
           <div class="search-combobox">
             <input id="album-search" type="search" autocomplete="off" placeholder="Album or artist" aria-label="Search albums and artists" role="combobox" aria-autocomplete="list" aria-controls="search-suggestions" aria-expanded="false">
@@ -126,6 +136,7 @@
           <p id="favourite-artists-status">Your shortcut to new releases.</p>
         </div>
         <div id="favourite-artists" class="artist-shelf" role="list"></div>
+        </div>
       </section>
 
       <section class="app-section stack-section" data-app-section="stack" aria-labelledby="stack-heading" hidden>

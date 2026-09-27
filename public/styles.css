@@ -378,6 +378,24 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .discovery-results { scroll-margin-top: 18px; }
 .discovery-results:empty { display: none; }
 .discovery-results > h3 { margin: 26px 0 10px; }
+.artist-discography[hidden], #library-browser[hidden] { display: none; }
+.artist-discography { padding-bottom: 28px; }
+.artist-discography-back {
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  padding: 0 0 3px;
+  background: transparent;
+  color: var(--ink);
+  font: 500 9px "DM Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  cursor: pointer;
+}
+.artist-discography-heading { margin: 28px 0 18px; }
+.artist-discography-heading .eyebrow { margin-bottom: 7px; }
+.artist-discography-heading h2 { margin: 0; font-size: clamp(34px, 7vw, 62px); line-height: .96; letter-spacing: -.055em; }
+.artist-discography-heading > p:last-child { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+.artist-discography-albums:empty { min-height: 180px; border: 1px dashed var(--line); border-radius: 16px; }
 .discovery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .discovery-card { min-width: 0; display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 11px; padding: 9px; border: 1px solid var(--line); border-radius: 12px; background: rgba(250,247,239,.74); }
 .discovery-art { grid-row: 1 / 3; width: 78px; height: 78px; border-radius: 8px; overflow: hidden; background: #d8d3c7; }

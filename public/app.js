@@ -61,6 +61,12 @@ const favouriteAlbumsStatus = document.querySelector("#favourite-albums-status")
 const recentReleasesElement = document.querySelector("#recent-releases");
 const recentReleaseAlbumsElement = document.querySelector("#recent-release-albums");
 const recentReleasesStatus = document.querySelector("#recent-releases-status");
+const libraryBrowser = document.querySelector("#library-browser");
+const artistDiscography = document.querySelector("#artist-discography");
+const artistDiscographyTitle = document.querySelector("#artist-discography-title");
+const artistDiscographyStatus = document.querySelector("#artist-discography-status");
+const artistDiscographyAlbums = document.querySelector("#artist-discography-albums");
+const artistDiscographyBack = document.querySelector("#artist-discography-back");
 const appNavigation = document.querySelector("#app-navigation");
 const activeTargetSummary = document.querySelector("#active-target-summary");
 
@@ -416,7 +422,7 @@ function artistResultCard(artist) {
     const releases = document.createElement("button");
     releases.type = "button";
     releases.className = "result-play";
-    releases.textContent = "View releases";
+    releases.textContent = "View albums";
     releases.addEventListener("click", () => showArtistReleases(artist, releases));
     actions.append(releases);
   }
@@ -480,7 +486,7 @@ function renderFavouriteArtists() {
     const releases = document.createElement("button");
     releases.type = "button";
     releases.className = "favourite-artist-releases";
-    releases.textContent = "View releases";
+    releases.textContent = "View albums";
     releases.addEventListener("click", () => showArtistReleases(artist, releases));
     copy.append(label, name, releases);
 
@@ -740,17 +746,20 @@ async function searchSpotify(event) {
 async function showArtistReleases(artist, button) {
   button.disabled = true;
   const originalText = button.textContent;
-  button.textContent = "Loading…";
+  libraryBrowser.hidden = true;
+  artistDiscography.hidden = false;
+  artistDiscographyTitle.textContent = artist.name;
+  artistDiscographyStatus.textContent = "Loading all albums…";
+  artistDiscographyAlbums.replaceChildren();
+  window.scrollTo({ top: 0, behavior: "smooth" });
   try {
     const albums = await request(`/api/spotify/artists/${encodeURIComponent(artist.id)}/albums`);
-    renderDiscoveryResults({ heading: `Recent releases by ${artist.name}`, albums });
-    discoveryResultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+    artistDiscographyStatus.textContent = albums.length
+      ? `${albums.length} album${albums.length === 1 ? "" : "s"}, newest first.`
+      : `No albums found for ${artist.name}.`;
+    artistDiscographyAlbums.replaceChildren(...albums.map(albumResultCard));
   } catch (error) {
-    renderDiscoveryResults({
-      heading: "Releases unavailable",
-      emptyMessage: artistReleaseErrorMessage(artist.name, error),
-    });
-    discoveryResultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+    artistDiscographyStatus.textContent = artistReleaseErrorMessage(artist.name, error);
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -1210,6 +1219,11 @@ async function startApp() {
   coverflowStage.addEventListener("pointermove", updateCoverFlowDrag);
   coverflowStage.addEventListener("pointerup", finishCoverFlowDrag);
   coverflowStage.addEventListener("pointercancel", finishCoverFlowDrag);
+  artistDiscographyBack.addEventListener("click", () => {
+    artistDiscography.hidden = true;
+    libraryBrowser.hidden = false;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
 
   if ("NDEFReader" in globalThis) {
     showNfcStatus("Ready. Start scanning, or pair a blank card to an album.");
@@ -1240,6 +1254,7 @@ async function startApp() {
   renderCoverFlow();
   renderFavouriteArtists();
   renderFavouriteAlbums();
+  void loadRecentFavouriteReleases();
 
   if (spotifyStatus.connected) {
     playbackMonitor = createPlaybackMonitor({
@@ -1274,11 +1289,9 @@ async function startApp() {
         renderCoverFlow();
         renderRotation();
         renderSpotifyStatus(spotifyStatus);
-        await loadRecentFavouriteReleases();
       })
       .catch((error) => {
         document.querySelector("#destination-status").textContent = error.message;
-        void loadRecentFavouriteReleases();
       });
 
     document.addEventListener("visibilitychange", async () => {
@@ -1290,8 +1303,6 @@ async function startApp() {
         document.querySelector("#destination-status").textContent = error.message;
       }
     });
-  } else {
-    void loadRecentFavouriteReleases();
   }
 }
 

@@ -224,6 +224,7 @@ test("loads an artist's newest unique releases", async () => {
   const releases = await spotify.getArtistAlbums("artist-1");
 
   assert.equal(artistAlbumsUrl.searchParams.get("limit"), "10");
+  assert.equal(artistAlbumsUrl.searchParams.get("include_groups"), "album");
   assert.deepEqual(releases.map(({ id }) => id), ["new", "old"]);
 });
 
