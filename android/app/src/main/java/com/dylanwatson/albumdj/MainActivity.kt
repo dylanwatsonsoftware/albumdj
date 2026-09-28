@@ -151,6 +151,7 @@ private fun AlbumDjApp(
 ) {
     var account by remember { mutableStateOf(repository.cachedAccount()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var carPreview by remember { mutableStateOf(false) }
@@ -162,6 +163,7 @@ private fun AlbumDjApp(
         if (sessionToken == null) return@LaunchedEffect
         loading = true
         error = null
+        notice = null
         runCatching { withContext(Dispatchers.IO) { repository.sync() } }
             .onSuccess { account = it }
             .onFailure { error = it.message }
@@ -170,10 +172,14 @@ private fun AlbumDjApp(
 
     val playAlbum: (String) -> Unit = { albumId ->
         error = null
+        notice = null
         loading = true
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.playAlbum(albumId) } }
-                .onSuccess { playback -> playback.openUrl?.let(openSpotify) }
+                .onSuccess { playback ->
+                    notice = albumPlaybackNotice(playback)
+                    playback.openUrl?.let(openSpotify)
+                }
                 .onFailure { error = it.message }
             loading = false
         }
@@ -184,6 +190,7 @@ private fun AlbumDjApp(
             StackPlaybackAction.REAUTHORIZE -> reauthorize()
             StackPlaybackAction.PLAY -> {
                 error = null
+                notice = null
                 loading = true
                 scope.launch {
                     runCatching { withContext(Dispatchers.IO) { repository.playStack() } }
@@ -195,6 +202,7 @@ private fun AlbumDjApp(
     }
     val ejectAlbum: (String) -> Unit = { albumId ->
         error = null
+        notice = null
         loading = true
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.ejectAlbum(albumId) } }
@@ -205,6 +213,7 @@ private fun AlbumDjApp(
     }
     val search: (String) -> Unit = { query ->
         error = null
+        notice = null
         searchLoading = true
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.search(query) } }
@@ -215,6 +224,7 @@ private fun AlbumDjApp(
     }
     val setAlbumFavourite: (String, Boolean) -> Unit = { albumId, favourite ->
         error = null
+        notice = null
         loading = true
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.setAlbumFavourite(albumId, favourite) } }
@@ -235,6 +245,7 @@ private fun AlbumDjApp(
                 connected = sessionToken != null,
                 loading = loading,
                 error = error,
+                notice = notice,
                 connect = connect,
                 reauthorize = reauthorize,
                 refresh = { refresh += 1 },
@@ -258,6 +269,7 @@ private fun AlbumDjPhone(
     connected: Boolean,
     loading: Boolean,
     error: String?,
+    notice: String?,
     connect: () -> Unit,
     reauthorize: () -> Unit,
     refresh: () -> Unit,
@@ -276,7 +288,7 @@ private fun AlbumDjPhone(
     Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             AppHeader(account?.profileName, connected) { section = PhoneSection.SETTINGS }
-            if (loading || error != null) StatusStrip(loading, error)
+            if (loading || error != null || notice != null) StatusStrip(loading, error, notice)
             Box(Modifier.weight(1f)) {
                 when (section) {
                     PhoneSection.DISCOVER -> DiscoverScreen(
@@ -290,7 +302,7 @@ private fun AlbumDjPhone(
                         playAlbum,
                         openArtist,
                     )
-                    PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum)
+                    PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum, openArtist)
                     PhoneSection.STACK -> StackScreen(library, stackPlaybackAction(account), playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
                     PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, reauthorize, refresh, preview)
                 }
@@ -324,15 +336,15 @@ private fun AppHeader(profileName: String?, connected: Boolean, openSettings: ()
 }
 
 @Composable
-private fun StatusStrip(loading: Boolean, error: String?) {
+private fun StatusStrip(loading: Boolean, error: String?, notice: String?) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().background(if (error == null) Raised else Color(0xFF3A1E1B)).padding(horizontal = 18.dp, vertical = 9.dp),
     ) {
         if (loading) CircularProgressIndicator(color = Acid, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
         Text(
-            error ?: "Syncing your Album DJ library…",
-            color = if (error == null) Muted else Color(0xFFFFAAA0),
+            error ?: notice ?: "Syncing your Album DJ library…",
+            color = if (error == null) if (notice == null) Muted else Acid else Color(0xFFFFAAA0),
             fontSize = 12.sp,
             modifier = Modifier.padding(start = if (loading) 10.dp else 0.dp),
         )
@@ -463,6 +475,7 @@ private fun CompactAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
         AlbumArtwork(album, Modifier.fillMaxWidth().aspectRatio(1f), 15)
         Text(album.title, color = Ink, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
         Text(album.subtitle.orEmpty(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        Text("TAP TO PLAY", color = Acid, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 6.dp))
     }
 }
 
@@ -482,7 +495,12 @@ private fun GatewayCard(label: String, title: String, body: String, action: Stri
 }
 
 @Composable
-private fun CollectionScreen(artists: List<Artist>, library: AlbumDjLibrary, playAlbum: (String) -> Unit) {
+private fun CollectionScreen(
+    artists: List<Artist>,
+    library: AlbumDjLibrary,
+    playAlbum: (String) -> Unit,
+    openArtist: (String, String) -> Unit,
+) {
     val favourites = albumsForPhoneSection(PhoneSection.COLLECTION, library)
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
@@ -496,7 +514,7 @@ private fun CollectionScreen(artists: List<Artist>, library: AlbumDjLibrary, pla
         if (artists.isEmpty()) {
             item { EmptyCard("No favourite artists yet", "Favourite artists on the web and refresh this app to bring them here.") }
         } else {
-            item { ArtistShelf(artists) }
+            item { ArtistShelf(artists, openArtist) }
         }
         item { CollectionHeading("Favourite albums") }
         if (favourites.isEmpty()) {
@@ -565,6 +583,16 @@ private fun ArtistShelf(artists: List<Artist>, openArtist: ((String, String) -> 
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                if (openArtist != null) {
+                    Text(
+                        "VIEW ALBUMS",
+                        color = Acid,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                }
             }
         }
     }
@@ -582,6 +610,7 @@ private fun GridAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
         AlbumArtwork(album, Modifier.fillMaxWidth().aspectRatio(1f), 15)
         Text(album.title, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         Text(album.subtitle.orEmpty(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        Text("TAP TO PLAY", color = Acid, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 6.dp))
     }
 }
 

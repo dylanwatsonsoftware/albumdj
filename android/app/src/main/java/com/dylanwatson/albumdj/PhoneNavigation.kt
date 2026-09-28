@@ -1,6 +1,7 @@
 package com.dylanwatson.albumdj
 
 import com.dylanwatson.albumdj.data.AlbumDjAccount
+import com.dylanwatson.albumdj.data.AlbumPlayback
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
 
@@ -23,6 +24,12 @@ fun stackPlaybackAction(account: AlbumDjAccount?): StackPlaybackAction = when {
     account == null || !account.connected -> StackPlaybackAction.CONNECT
     !account.playlistAccess -> StackPlaybackAction.REAUTHORIZE
     else -> StackPlaybackAction.PLAY
+}
+
+fun albumPlaybackNotice(playback: AlbumPlayback): String = if (playback.openUrl == null) {
+    "Playing on your selected Spotify device."
+} else {
+    "Opening this album in Spotify…"
 }
 
 fun albumsForPhoneSection(section: PhoneSection, library: AlbumDjLibrary): List<LibraryNode> = when (section) {

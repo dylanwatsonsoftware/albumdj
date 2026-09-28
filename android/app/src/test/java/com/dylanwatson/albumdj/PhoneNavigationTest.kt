@@ -1,6 +1,7 @@
 package com.dylanwatson.albumdj
 
 import com.dylanwatson.albumdj.data.AlbumDjAccount
+import com.dylanwatson.albumdj.data.AlbumPlayback
 import com.dylanwatson.albumdj.data.Rotation
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
@@ -63,6 +64,18 @@ class PhoneNavigationTest {
         assertEquals(
             StackPlaybackAction.CONNECT,
             stackPlaybackAction(account(connected = false, playlistAccess = false)),
+        )
+    }
+
+    @Test
+    fun `album playback reports whether Spotify started or must be opened`() {
+        assertEquals(
+            "Playing on your selected Spotify device.",
+            albumPlaybackNotice(AlbumPlayback(openUrl = null)),
+        )
+        assertEquals(
+            "Opening this album in Spotify…",
+            albumPlaybackNotice(AlbumPlayback(openUrl = "https://open.spotify.com/album/blue")),
         )
     }
 
