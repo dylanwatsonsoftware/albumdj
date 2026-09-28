@@ -197,6 +197,18 @@ class PhoneNavigationTest {
         )
     }
 
+    @Test
+    fun `stack album cards expose an explicit play action before secondary actions`() {
+        assertEquals(
+            listOf(StackAlbumAction.PLAY, StackAlbumAction.FAVOURITE, StackAlbumAction.ARTIST, StackAlbumAction.EJECT),
+            stackAlbumActions(hasArtist = true),
+        )
+        assertEquals(
+            listOf(StackAlbumAction.PLAY, StackAlbumAction.FAVOURITE, StackAlbumAction.EJECT),
+            stackAlbumActions(hasArtist = false),
+        )
+    }
+
     private fun account(connected: Boolean, playlistAccess: Boolean) = AlbumDjAccount(
         connected = connected,
         playlistAccess = playlistAccess,

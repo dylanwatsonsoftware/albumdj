@@ -29,6 +29,13 @@ enum class StackContentSection {
     ALBUM_LIST,
 }
 
+enum class StackAlbumAction {
+    PLAY,
+    FAVOURITE,
+    ARTIST,
+    EJECT,
+}
+
 data class ArtistFavouriteAction(
     val label: String,
     val selected: Boolean,
@@ -127,6 +134,13 @@ fun stackContentSections(hasAlbums: Boolean): List<StackContentSection> = if (ha
     )
 } else {
     emptyList()
+}
+
+fun stackAlbumActions(hasArtist: Boolean): List<StackAlbumAction> = buildList {
+    add(StackAlbumAction.PLAY)
+    add(StackAlbumAction.FAVOURITE)
+    if (hasArtist) add(StackAlbumAction.ARTIST)
+    add(StackAlbumAction.EJECT)
 }
 
 fun stackPlaybackAction(account: AlbumDjAccount?): StackPlaybackAction = when {

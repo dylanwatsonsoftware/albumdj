@@ -1146,33 +1146,72 @@ private fun StackAlbumRow(
     setAlbumFavourite: (Album, Boolean) -> Unit,
     openArtist: (Artist) -> Unit,
 ) {
+    val actions = stackAlbumActions(album.artistId != null)
     Column(
         Modifier.padding(horizontal = 18.dp, vertical = 6.dp).fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp)).background(Panel).padding(12.dp),
+            .clip(RoundedCornerShape(18.dp)).background(Panel).padding(14.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().clickable { playAlbum(album.id) },
+            modifier = Modifier.fillMaxWidth(),
         ) {
             AlbumArtwork(album.asLibraryNode(), Modifier.size(62.dp), 10)
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                 Text(album.title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(album.artistAndYear(), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
             }
-            Text("PLAY", color = Acid, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+        if (StackAlbumAction.PLAY in actions) {
+            Button(
+                onClick = { playAlbum(album.id) },
+                colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(46.dp),
+            ) {
+                Text("▶  PLAY ALBUM", fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
         }
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         ) {
-            StackAction(
+            StackOutlinedAction(
                 label = if (favourite) "★ Favourited" else "☆ Favourite",
+                selected = favourite,
                 modifier = Modifier.weight(1f),
             ) { setAlbumFavourite(album, !favourite) }
-            if (album.artistId != null) {
-                StackAction("View artist", Modifier.weight(1f)) { openArtist(Artist(album.artistId, album.artist, null)) }
+            if (StackAlbumAction.ARTIST in actions && album.artistId != null) {
+                StackOutlinedAction("View artist", Modifier.weight(1f)) { openArtist(Artist(album.artistId, album.artist, null)) }
             }
-            StackAction("Eject", Modifier.weight(1f), danger = true) { ejectAlbum(album.id) }
+            StackOutlinedAction("Eject", Modifier.weight(1f), danger = true) { ejectAlbum(album.id) }
+        }
+    }
+}
+
+@Composable
+private fun StackOutlinedAction(
+    label: String,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    danger: Boolean = false,
+    action: () -> Unit,
+) {
+    if (selected) {
+        Button(
+            onClick = action,
+            colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+            contentPadding = PaddingValues(horizontal = 5.dp),
+            modifier = modifier.height(44.dp),
+        ) {
+            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    } else {
+        OutlinedButton(
+            onClick = action,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = if (danger) Coral else Ink),
+            contentPadding = PaddingValues(horizontal = 5.dp),
+            modifier = modifier.height(44.dp),
+        ) {
+            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
 }
