@@ -130,6 +130,38 @@ class PhoneNavigationTest {
         assertEquals(listOf("Abbey Road", "Zooropa"), view.albums.map { it.title })
     }
 
+    @Test
+    fun `discover ideas use the full saved Spotify album library`() {
+        val discoverLibrary = AlbumDjLibrary(
+            stack = emptyList(),
+            favourites = listOf(Album("favourite", "A favourite", "Artist")),
+            recent = listOf(Album("recent", "A new release", "Artist")),
+            saved = listOf(
+                Album("blue", "Blue", "Joni Mitchell"),
+                Album("rainbows", "In Rainbows", "Radiohead"),
+            ),
+        )
+
+        assertEquals(
+            listOf("Blue", "In Rainbows"),
+            discoverAlbumIdeas(discoverLibrary, "").map { it.title },
+        )
+    }
+
+    @Test
+    fun `discover ideas filter saved albums by title or artist`() {
+        val discoverLibrary = AlbumDjLibrary(
+            stack = emptyList(),
+            saved = listOf(
+                Album("blue", "Blue", "Joni Mitchell"),
+                Album("rainbows", "In Rainbows", "Radiohead"),
+            ),
+        )
+
+        assertEquals(listOf("Blue"), discoverAlbumIdeas(discoverLibrary, "joni").map { it.title })
+        assertEquals(listOf("In Rainbows"), discoverAlbumIdeas(discoverLibrary, "rain").map { it.title })
+    }
+
     private fun account(connected: Boolean, playlistAccess: Boolean) = AlbumDjAccount(
         connected = connected,
         playlistAccess = playlistAccess,

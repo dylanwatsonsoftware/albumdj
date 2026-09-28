@@ -67,6 +67,7 @@ class AlbumDjCache(context: Context) {
     fun save(payload: AlbumDjPayload) {
         preferences.edit()
             .putString("status", payload.statusJson)
+            .putString("saved", payload.savedJson)
             .putString("rotation", payload.rotationJson)
             .putString("favourites", payload.favouritesJson)
             .putString("artists", payload.artistsJson)
@@ -78,6 +79,7 @@ class AlbumDjCache(context: Context) {
         val status = preferences.getString("status", null) ?: return null
         return AlbumDjPayload(
             statusJson = status,
+            savedJson = preferences.getString("saved", "[]") ?: "[]",
             rotationJson = preferences.getString("rotation", "{}") ?: "{}",
             favouritesJson = preferences.getString("favourites", "[]") ?: "[]",
             artistsJson = preferences.getString("artists", "[]") ?: "[]",

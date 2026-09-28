@@ -11,13 +11,14 @@ fun interface AlbumDjTransport {
 
 data class AlbumDjPayload(
     val statusJson: String,
+    val savedJson: String,
     val rotationJson: String,
     val favouritesJson: String,
     val artistsJson: String,
     val recentJson: String,
 ) {
     val account: AlbumDjAccount
-        get() = AlbumDjAccountJson.decode(statusJson, rotationJson, favouritesJson, artistsJson, recentJson)
+        get() = AlbumDjAccountJson.decode(statusJson, rotationJson, favouritesJson, artistsJson, recentJson, savedJson)
 }
 
 data class AlbumPlayback(val openUrl: String?)
@@ -32,6 +33,7 @@ class AlbumDjApi(
 ) {
     fun sync() = AlbumDjPayload(
         statusJson = transport.request("/api/spotify/status", "GET", null),
+        savedJson = transport.request("/api/spotify/albums", "GET", null),
         rotationJson = transport.request("/api/rotation", "GET", null),
         favouritesJson = transport.request("/api/favourite-albums", "GET", null),
         artistsJson = transport.request("/api/favourite-artists", "GET", null),

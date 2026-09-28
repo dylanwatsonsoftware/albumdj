@@ -21,6 +21,7 @@ class AlbumDjLibrary(
     val stack: List<Album>,
     val favourites: List<Album> = emptyList(),
     val recent: List<Album> = emptyList(),
+    val saved: List<Album> = emptyList(),
 ) {
     fun children(parentId: String): List<LibraryNode> = when (parentId) {
         ROOT_ID -> listOf(

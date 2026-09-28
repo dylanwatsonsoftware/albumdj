@@ -11,6 +11,7 @@ class AlbumDjApiTest {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val responses = mapOf(
             "/api/spotify/status" to """{"connected":true,"profile":{"displayName":"Dylan"}}""",
+            "/api/spotify/albums" to """[{"id":"saved-1","title":"Blue","artist":"Joni Mitchell"}]""",
             "/api/rotation" to """{"albums":[{"id":"stack","title":"Discovery","artist":"Daft Punk"}]}""",
             "/api/favourite-albums" to "[]",
             "/api/favourite-artists" to """[{"id":"artist-1","name":"Joni Mitchell"}]""",
@@ -24,9 +25,10 @@ class AlbumDjApiTest {
         val payload = api.sync()
 
         assertEquals(responses.keys.toList(), requested.map { it.first })
-        assertEquals(listOf("GET", "GET", "GET", "GET", "GET"), requested.map { it.second })
+        assertEquals(listOf("GET", "GET", "GET", "GET", "GET", "GET"), requested.map { it.second })
         assertEquals("Dylan", payload.account.profileName)
         assertEquals("Discovery", payload.account.library.children(AlbumDjLibrary.STACK_ID).single().title)
+        assertEquals(listOf("Blue"), payload.account.library.saved.map { it.title })
         assertEquals(listOf("Joni Mitchell"), payload.account.favouriteArtists.map { it.name })
     }
 

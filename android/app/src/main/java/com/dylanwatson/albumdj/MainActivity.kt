@@ -298,6 +298,7 @@ private fun AlbumDjApp(
                 searchResults = searchResults,
                 searchLoading = searchLoading,
                 search = search,
+                clearSearch = { searchResults = null },
                 selectedArtist = selectedArtist,
                 artistAlbums = artistAlbums,
                 artistLoading = artistLoading,
@@ -328,6 +329,7 @@ private fun AlbumDjPhone(
     searchResults: SearchResults?,
     searchLoading: Boolean,
     search: (String) -> Unit,
+    clearSearch: () -> Unit,
     selectedArtist: Artist?,
     artistAlbums: List<Album>,
     artistLoading: Boolean,
@@ -369,6 +371,7 @@ private fun AlbumDjPhone(
                             searchResults,
                             searchLoading,
                             search,
+                            clearSearch,
                             { section = PhoneSection.COLLECTION },
                             { section = PhoneSection.STACK },
                             playAlbum,
@@ -458,6 +461,7 @@ private fun DiscoverScreen(
     searchResults: SearchResults?,
     searchLoading: Boolean,
     search: (String) -> Unit,
+    clearSearch: () -> Unit,
     openCollection: () -> Unit,
     openStack: () -> Unit,
     playAlbum: (String) -> Unit,
@@ -465,18 +469,74 @@ private fun DiscoverScreen(
     setAlbumFavourite: (Album, Boolean) -> Unit,
     openArtist: (Artist) -> Unit,
 ) {
-    val recent = albumsForPhoneSection(PhoneSection.DISCOVER, library)
-    val stack = albumsForPhoneSection(PhoneSection.STACK, library)
+    val recent = library.recent
+    val stack = library.stack
     var query by remember { mutableStateOf("") }
+    var browseQuery by remember { mutableStateOf("") }
+    val ideas = discoverAlbumIdeas(library, browseQuery)
     val submitSearch = { if (query.isNotBlank() && !searchLoading) search(query.trim()) }
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { PageIntro("Discover", "Find your next album", "New releases from artists you love, with your current rotation always close by.") }
+        item { PageIntro("Discover", "Build your next stack", "Browse albums you already know, watch favourite artists for new releases, or search beyond your library.") }
         item {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Raised).padding(16.dp)) {
-                Label("Search Spotify")
+            DarkFeatureCard(
+                eyebrow = "From artists you watch",
+                title = "New releases",
+                body = if (recent.isEmpty()) "Favourite artists and their newest records will appear here after your next sync." else "${recent.size} recent album${if (recent.size == 1) "" else "s"} ready to consider for your stack.",
+            ) {
+                if (recent.isNotEmpty()) {
+                    DiscoveryAlbumShelf(recent, library, playAlbum, addAlbumToStack, setAlbumFavourite, openArtist)
+                }
+            }
+        }
+        item {
+            Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
+                Label("Your Spotify library")
+                Text("Browse album ideas", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "${library.saved.size} saved album${if (library.saved.size == 1) "" else "s"} to pull into this week’s stack.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+                )
+                OutlinedTextField(
+                    value = browseQuery,
+                    onValueChange = { browseQuery = it },
+                    singleLine = true,
+                    label = { Text("Filter saved albums") },
+                    placeholder = { Text("Album or artist") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        if (ideas.isEmpty()) {
+            item {
+                EmptyCard(
+                    if (library.saved.isEmpty()) "No saved Spotify albums yet" else "No saved albums match",
+                    if (library.saved.isEmpty()) "Save albums in Spotify, then refresh Album DJ to browse them here." else "Try another album or artist name.",
+                )
+            }
+        } else {
+            items(ideas.chunked(2)) { rowAlbums ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rowAlbums.forEach { album ->
+                        Box(Modifier.weight(1f)) {
+                            DiscoveryAlbumCard(album, library, playAlbum, addAlbumToStack, setAlbumFavourite, openArtist)
+                        }
+                    }
+                    if (rowAlbums.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        item {
+            Column(Modifier.padding(horizontal = 18.dp, vertical = 18.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Raised).padding(16.dp)) {
+                Label("Search beyond your library")
+                Text("Find any artist or album on Spotify, then save it or load it straight into your stack.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 8.dp))
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = {
+                        query = it
+                        if (searchResults != null) clearSearch()
+                    },
                     enabled = connected && !searchLoading,
                     singleLine = true,
                     label = { Text("Artist or album") },
@@ -498,36 +558,75 @@ private fun DiscoverScreen(
         }
         if (searchResults != null) {
             if (searchResults.artists.isNotEmpty()) {
-                item { CollectionHeading("Artists") }
+                item { CollectionHeading("Artists", "CLEAR", clearSearch) }
                 item { ArtistShelf(searchResults.artists, openArtist) }
             }
             if (searchResults.albums.isNotEmpty()) {
-                item { CollectionHeading("Albums") }
-                items(searchResults.albums, key = { it.id }) { album ->
-                    AlbumActionCard(
-                        album = album,
-                        favourite = library.favourites.any { it.id == album.id },
-                        inStack = library.stack.any { it.id == album.id },
-                        playAlbum = playAlbum,
-                        addAlbumToStack = addAlbumToStack,
-                        setAlbumFavourite = setAlbumFavourite,
-                        openArtist = openArtist,
-                    )
+                item { CollectionHeading("Album results", "CLEAR", clearSearch) }
+                items(searchResults.albums.chunked(2)) { rowAlbums ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowAlbums.forEach { album ->
+                            Box(Modifier.weight(1f)) {
+                                DiscoveryAlbumCard(album, library, playAlbum, addAlbumToStack, setAlbumFavourite, openArtist)
+                            }
+                        }
+                        if (rowAlbums.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
             if (searchResults.albums.isEmpty() && searchResults.artists.isEmpty()) {
+                item { CollectionHeading("Search results", "CLEAR", clearSearch) }
                 item { EmptyCard("No matches", "Try another artist or album name.") }
             }
         }
-        item {
-            DarkFeatureCard(
-                eyebrow = "Fresh arrivals",
-                title = "New releases for you",
-                body = if (recent.isEmpty()) "Favourite artists and their newest records will appear here after your next sync." else "${recent.size} recent album${if (recent.size == 1) "" else "s"} from your favourites.",
-            ) { if (recent.isNotEmpty()) AlbumShelf(recent, playAlbum) }
-        }
         item { GatewayCard("Your collection", "Return to your favourites", "Browse the albums you have deliberately kept close.", "Browse collection", openCollection) }
         item { GatewayCard("On your changer", "${stack.size} album${if (stack.size == 1) "" else "s"} loaded", "Flick through your focused rotation and start the complete stack.", "Open stack", openStack) }
+    }
+}
+
+@Composable
+private fun DiscoveryAlbumShelf(
+    albums: List<Album>,
+    library: AlbumDjLibrary,
+    playAlbum: (String) -> Unit,
+    addAlbumToStack: (Album) -> Unit,
+    setAlbumFavourite: (Album, Boolean) -> Unit,
+    openArtist: (Artist) -> Unit,
+) {
+    LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(albums, key = { it.id }) { album ->
+            DiscoveryAlbumCard(album, library, playAlbum, addAlbumToStack, setAlbumFavourite, openArtist, Modifier.width(170.dp))
+        }
+    }
+}
+
+@Composable
+private fun DiscoveryAlbumCard(
+    album: Album,
+    library: AlbumDjLibrary,
+    playAlbum: (String) -> Unit,
+    addAlbumToStack: (Album) -> Unit,
+    setAlbumFavourite: (Album, Boolean) -> Unit,
+    openArtist: (Artist) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val inStack = library.stack.any { it.id == album.id }
+    val favourite = library.favourites.any { it.id == album.id }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).padding(10.dp)) {
+        AlbumArtwork(album.asLibraryNode(), Modifier.fillMaxWidth().aspectRatio(1f).clickable { playAlbum(album.id) }, 13)
+        Text(album.title, color = Ink, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(album.artist, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+        StackAction(if (inStack) "✓ In stack" else "+ Add to stack", Modifier.fillMaxWidth()) {
+            if (!inStack) addAlbumToStack(album)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            StackAction(if (favourite) "★ Saved" else "☆ Save", Modifier.weight(1f)) {
+                setAlbumFavourite(album, !favourite)
+            }
+            if (album.artistId != null) {
+                StackAction("Artist", Modifier.weight(1f)) { openArtist(Artist(album.artistId, album.artist, null)) }
+            }
+        }
     }
 }
 

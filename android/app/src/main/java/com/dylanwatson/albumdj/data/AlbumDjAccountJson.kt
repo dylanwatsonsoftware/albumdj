@@ -33,6 +33,7 @@ object AlbumDjAccountJson {
         favouritesJson: String,
         artistsJson: String,
         recentJson: String,
+        savedJson: String = "[]",
     ): AlbumDjAccount {
         val status = JSONObject(statusJson)
         val profile = status.optJSONObject("profile")
@@ -51,6 +52,7 @@ object AlbumDjAccountJson {
                 stack = rotation.optJSONArray("albums").toAlbums(),
                 favourites = JSONArray(favouritesJson).toAlbums(),
                 recent = JSONArray(recentJson).toAlbums(),
+                saved = JSONArray(savedJson).toAlbums(),
             ),
         )
     }

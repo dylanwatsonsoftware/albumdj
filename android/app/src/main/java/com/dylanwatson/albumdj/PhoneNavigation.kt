@@ -84,6 +84,15 @@ fun collectionView(
     return CollectionView(visibleArtists, visibleAlbums)
 }
 
+fun discoverAlbumIdeas(library: AlbumDjLibrary, query: String): List<Album> {
+    val search = query.trim()
+    return library.saved.filter {
+        search.isEmpty() ||
+            it.title.contains(search, ignoreCase = true) ||
+            it.artist.contains(search, ignoreCase = true)
+    }
+}
+
 fun stackPlaybackAction(account: AlbumDjAccount?): StackPlaybackAction = when {
     account == null || !account.connected -> StackPlaybackAction.CONNECT
     !account.playlistAccess -> StackPlaybackAction.REAUTHORIZE
