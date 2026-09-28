@@ -7,6 +7,7 @@
 
     <application
         android:allowBackup="true"
+        android:appCategory="audio"
         android:icon="@drawable/ic_album_dj"
         android:label="Album DJ"
         android:roundIcon="@drawable/ic_album_dj"
@@ -46,5 +47,8 @@
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.TintableAttributionIcon"
+            android:resource="@drawable/ic_album_dj_status" />
     </application>
 </manifest>
