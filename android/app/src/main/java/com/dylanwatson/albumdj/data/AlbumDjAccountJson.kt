@@ -9,7 +9,14 @@ data class AlbumDjAccount(
     val connected: Boolean,
     val profileName: String?,
     val favouriteArtists: List<Artist>,
+    val rotation: Rotation,
     val library: AlbumDjLibrary,
+)
+
+data class Rotation(
+    val albumIds: List<String>,
+    val durationDays: Int,
+    val mode: String,
 )
 
 data class Artist(
@@ -28,17 +35,28 @@ object AlbumDjAccountJson {
     ): AlbumDjAccount {
         val status = JSONObject(statusJson)
         val profile = status.optJSONObject("profile")
+        val rotation = JSONObject(rotationJson)
         return AlbumDjAccount(
             connected = status.optBoolean("connected"),
             profileName = profile?.optString("displayName")?.takeIf(String::isNotBlank),
             favouriteArtists = JSONArray(artistsJson).toArtists(),
+            rotation = Rotation(
+                albumIds = rotation.optJSONArray("albumIds").toStrings(),
+                durationDays = rotation.optInt("durationDays", 7),
+                mode = rotation.optString("mode", "sequential"),
+            ),
             library = AlbumDjLibrary(
-                stack = JSONObject(rotationJson).optJSONArray("albums").toAlbums(),
+                stack = rotation.optJSONArray("albums").toAlbums(),
                 favourites = JSONArray(favouritesJson).toAlbums(),
                 recent = JSONArray(recentJson).toAlbums(),
             ),
         )
     }
+}
+
+private fun JSONArray?.toStrings(): List<String> {
+    if (this == null) return emptyList()
+    return (0 until length()).mapNotNull { index -> optString(index).takeIf(String::isNotBlank) }
 }
 
 private fun JSONArray?.toArtists(): List<Artist> {
@@ -74,6 +92,7 @@ private fun JSONArray?.toAlbums(): List<Album> {
                     title = title,
                     artist = album.optString("artist"),
                     imageUrl = album.optString("imageUrl").takeIf(String::isNotBlank),
+                    artistId = album.optString("artistId").takeIf(String::isNotBlank),
                 ),
             )
         }

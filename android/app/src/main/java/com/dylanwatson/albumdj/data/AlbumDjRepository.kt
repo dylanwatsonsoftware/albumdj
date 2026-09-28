@@ -105,6 +105,31 @@ class AlbumDjRepository(context: Context) {
 
     fun playStack() = api().playStack()
 
+    fun ejectAlbum(albumId: String): AlbumDjAccount {
+        val payload = cache.load() ?: error("Refresh your Album DJ library first")
+        val account = payload.account
+        val rotationJson = api().updateRotation(
+            albumIds = account.rotation.albumIds.filterNot { it == albumId },
+            durationDays = account.rotation.durationDays,
+            mode = account.rotation.mode,
+        )
+        return payload.copy(rotationJson = rotationJson).also(cache::save).account
+    }
+
+    fun setAlbumFavourite(albumId: String, favourite: Boolean): AlbumDjAccount {
+        val payload = cache.load() ?: error("Refresh your Album DJ library first")
+        val account = payload.account
+        val album = account.library.stack.firstOrNull { it.id == albumId }
+            ?: error("That album is no longer in your stack")
+        val albums = if (favourite) {
+            (account.library.favourites + album).distinctBy { it.id }
+        } else {
+            account.library.favourites.filterNot { it.id == albumId }
+        }
+        val favouritesJson = api().saveFavouriteAlbums(albums)
+        return payload.copy(favouritesJson = favouritesJson).also(cache::save).account
+    }
+
     private fun api(): AlbumDjApi {
         val token = sessions.token() ?: error("Connect Spotify first")
         return AlbumDjApi(HttpAlbumDjTransport(token))
@@ -112,7 +137,7 @@ class AlbumDjRepository(context: Context) {
 }
 
 private class HttpAlbumDjTransport(private val token: String) : AlbumDjTransport {
-    override fun request(path: String, method: String): String {
+    override fun request(path: String, method: String, body: String?): String {
         val connection = URL("$API_BASE_URL$path").openConnection() as HttpURLConnection
         return try {
             connection.requestMethod = method
@@ -120,6 +145,11 @@ private class HttpAlbumDjTransport(private val token: String) : AlbumDjTransport
             connection.readTimeout = 45_000
             connection.setRequestProperty("Authorization", "Bearer $token")
             connection.setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.bufferedWriter().use { it.write(body) }
+            }
             val status = connection.responseCode
             val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()

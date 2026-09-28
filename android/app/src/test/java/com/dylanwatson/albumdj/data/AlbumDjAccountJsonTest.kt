@@ -10,7 +10,7 @@ class AlbumDjAccountJsonTest {
     fun `decodes a connected Firebase-backed account into the car library`() {
         val account = AlbumDjAccountJson.decode(
             statusJson = """{"connected":true,"profile":{"displayName":"Dylan"}}""",
-            rotationJson = """{"albums":[{"id":"stack-1","title":"Discovery","artist":"Daft Punk","imageUrl":"https://img/stack.jpg"}]}""",
+            rotationJson = """{"albumIds":["stack-1"],"durationDays":14,"mode":"shuffle","albums":[{"id":"stack-1","title":"Discovery","artist":"Daft Punk","artistId":"daft-punk","imageUrl":"https://img/stack.jpg"}]}""",
             favouritesJson = """[{"id":"fav-1","title":"Blue","artist":"Joni Mitchell"}]""",
             artistsJson = """[{"id":"artist-1","name":"Joni Mitchell","imageUrl":"https://img/artist.jpg"}]""",
             recentJson = """[{"id":"new-1","title":"Cutouts","artist":"The Smile","releaseDate":"2026-08-01"}]""",
@@ -19,6 +19,10 @@ class AlbumDjAccountJsonTest {
         assertTrue(account.connected)
         assertEquals("Dylan", account.profileName)
         assertEquals(listOf("Discovery"), account.library.children(AlbumDjLibrary.STACK_ID).map { it.title })
+        assertEquals("daft-punk", account.library.stack.single().artistId)
+        assertEquals(listOf("stack-1"), account.rotation.albumIds)
+        assertEquals(14, account.rotation.durationDays)
+        assertEquals("shuffle", account.rotation.mode)
         assertEquals(listOf("Blue"), account.library.children(AlbumDjLibrary.FAVOURITES_ID).map { it.title })
         assertEquals(listOf("Cutouts"), account.library.children(AlbumDjLibrary.RECENT_ID).map { it.title })
         assertEquals(listOf("Joni Mitchell"), account.favouriteArtists.map { it.name })

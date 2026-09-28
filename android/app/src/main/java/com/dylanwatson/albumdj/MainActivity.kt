@@ -64,6 +64,7 @@ import coil.compose.AsyncImage
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumDjRepository
 import com.dylanwatson.albumdj.data.Artist
+import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +88,10 @@ class MainActivity : ComponentActivity() {
                 repository = repository,
                 sessionToken = sessionToken,
                 connect = { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MOBILE_CONNECT_URL))) },
+                openArtist = { artistId, artistName ->
+                    val url = "https://albumdj.vercel.app/#artist/${Uri.encode(artistId)}?name=${Uri.encode(artistName)}"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                },
             )
         }
     }
@@ -120,7 +125,12 @@ private val Coral = Color(0xFFFF786A)
 private val DeepInk = Color(0xFF11130F)
 
 @Composable
-private fun AlbumDjApp(repository: AlbumDjRepository, sessionToken: String?, connect: () -> Unit) {
+private fun AlbumDjApp(
+    repository: AlbumDjRepository,
+    sessionToken: String?,
+    connect: () -> Unit,
+    openArtist: (String, String) -> Unit,
+) {
     var account by remember { mutableStateOf(repository.cachedAccount()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -156,6 +166,26 @@ private fun AlbumDjApp(repository: AlbumDjRepository, sessionToken: String?, con
             loading = false
         }
     }
+    val ejectAlbum: (String) -> Unit = { albumId ->
+        error = null
+        loading = true
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { repository.ejectAlbum(albumId) } }
+                .onSuccess { account = it }
+                .onFailure { error = it.message }
+            loading = false
+        }
+    }
+    val setAlbumFavourite: (String, Boolean) -> Unit = { albumId, favourite ->
+        error = null
+        loading = true
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { repository.setAlbumFavourite(albumId, favourite) } }
+                .onSuccess { account = it }
+                .onFailure { error = it.message }
+            loading = false
+        }
+    }
 
     MaterialTheme(
         colorScheme = darkColorScheme(primary = Acid, onPrimary = DeepInk, background = Canvas, onBackground = Ink, surface = Panel, onSurface = Ink),
@@ -173,6 +203,9 @@ private fun AlbumDjApp(repository: AlbumDjRepository, sessionToken: String?, con
                 preview = { carPreview = true },
                 playAlbum = playAlbum,
                 playStack = playStack,
+                ejectAlbum = ejectAlbum,
+                setAlbumFavourite = setAlbumFavourite,
+                openArtist = openArtist,
             )
         }
     }
@@ -189,6 +222,9 @@ private fun AlbumDjPhone(
     preview: () -> Unit,
     playAlbum: (String) -> Unit,
     playStack: () -> Unit,
+    ejectAlbum: (String) -> Unit,
+    setAlbumFavourite: (String, Boolean) -> Unit,
+    openArtist: (String, String) -> Unit,
 ) {
     var section by remember { mutableStateOf(DEFAULT_PHONE_SECTION) }
     val library = account?.library ?: AlbumDjLibrary.demo()
@@ -200,7 +236,7 @@ private fun AlbumDjPhone(
                 when (section) {
                     PhoneSection.DISCOVER -> DiscoverScreen(library, { section = PhoneSection.COLLECTION }, { section = PhoneSection.STACK }, playAlbum)
                     PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum)
-                    PhoneSection.STACK -> StackScreen(library, playAlbum, playStack)
+                    PhoneSection.STACK -> StackScreen(library, playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
                     PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, refresh, preview)
                 }
             }
@@ -438,7 +474,14 @@ private fun GridAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun StackScreen(library: AlbumDjLibrary, playAlbum: (String) -> Unit, playStack: () -> Unit) {
+private fun StackScreen(
+    library: AlbumDjLibrary,
+    playAlbum: (String) -> Unit,
+    playStack: () -> Unit,
+    ejectAlbum: (String) -> Unit,
+    setAlbumFavourite: (String, Boolean) -> Unit,
+    openArtist: (String, String) -> Unit,
+) {
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
     val pagerState = rememberPagerState(pageCount = { stack.size })
     val coroutineScope = rememberCoroutineScope()
@@ -499,9 +542,87 @@ private fun StackScreen(library: AlbumDjLibrary, playAlbum: (String) -> Unit, pl
                     }
                 }
             }
+            item { CollectionHeading("Loaded albums") }
+            items(library.stack, key = { it.id }) { album ->
+                StackAlbumRow(
+                    album = album,
+                    favourite = library.favourites.any { it.id == album.id },
+                    playAlbum = playAlbum,
+                    ejectAlbum = ejectAlbum,
+                    setAlbumFavourite = setAlbumFavourite,
+                    openArtist = openArtist,
+                )
+            }
         }
     }
 }
+
+@Composable
+private fun StackAlbumRow(
+    album: Album,
+    favourite: Boolean,
+    playAlbum: (String) -> Unit,
+    ejectAlbum: (String) -> Unit,
+    setAlbumFavourite: (String, Boolean) -> Unit,
+    openArtist: (String, String) -> Unit,
+) {
+    Column(
+        Modifier.padding(horizontal = 18.dp, vertical = 6.dp).fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp)).background(Panel).padding(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().clickable { playAlbum(album.id) },
+        ) {
+            AlbumArtwork(album.asLibraryNode(), Modifier.size(62.dp), 10)
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(album.title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(album.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+            }
+            Text("PLAY", color = Acid, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        ) {
+            StackAction(
+                label = if (favourite) "★ Favourited" else "☆ Favourite",
+                modifier = Modifier.weight(1f),
+            ) { setAlbumFavourite(album.id, !favourite) }
+            if (album.artistId != null) {
+                StackAction("View artist", Modifier.weight(1f)) { openArtist(album.artistId, album.artist) }
+            }
+            StackAction("Eject", Modifier.weight(1f), danger = true) { ejectAlbum(album.id) }
+        }
+    }
+}
+
+@Composable
+private fun StackAction(label: String, modifier: Modifier = Modifier, danger: Boolean = false, action: () -> Unit) {
+    Surface(
+        color = Raised,
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.clickable(onClick = action),
+    ) {
+        Text(
+            label,
+            color = if (danger) Coral else Ink,
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 10.dp),
+        )
+    }
+}
+
+private fun Album.asLibraryNode() = LibraryNode(
+    id = "album:$id",
+    title = title,
+    subtitle = artist,
+    playable = true,
+    imageUrl = imageUrl,
+)
 
 @Composable
 private fun SettingsScreen(account: AlbumDjAccount?, connected: Boolean, connect: () -> Unit, refresh: () -> Unit, preview: () -> Unit) {

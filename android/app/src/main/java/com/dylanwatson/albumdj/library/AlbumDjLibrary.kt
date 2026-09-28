@@ -5,6 +5,7 @@ data class Album(
     val title: String,
     val artist: String,
     val imageUrl: String? = null,
+    val artistId: String? = null,
 )
 
 data class LibraryNode(
@@ -17,9 +18,9 @@ data class LibraryNode(
 )
 
 class AlbumDjLibrary(
-    private val stack: List<Album>,
-    private val favourites: List<Album> = emptyList(),
-    private val recent: List<Album> = emptyList(),
+    val stack: List<Album>,
+    val favourites: List<Album> = emptyList(),
+    val recent: List<Album> = emptyList(),
 ) {
     fun children(parentId: String): List<LibraryNode> = when (parentId) {
         ROOT_ID -> listOf(
