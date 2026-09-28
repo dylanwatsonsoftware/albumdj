@@ -1,5 +1,6 @@
 package com.dylanwatson.albumdj.data
 
+import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -89,6 +90,23 @@ class AlbumDjApiTest {
     }
 
     @Test
+    fun `artist discography encodes the artist and maps its albums`() {
+        val requested = mutableListOf<Triple<String, String, String?>>()
+        val api = AlbumDjApi { path, method, body ->
+            requested += Triple(path, method, body)
+            """[{"id":"blue","title":"Blue","artist":"Joni Mitchell","artistId":"joni"}]"""
+        }
+
+        val albums = api.artistAlbums("joni/mitchell")
+
+        assertEquals(
+            listOf(Triple("/api/spotify/artists/joni%2Fmitchell/albums", "GET", null)),
+            requested,
+        )
+        assertEquals("Blue", albums.single().title)
+    }
+
+    @Test
     fun `ejecting an album preserves the stack settings`() {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val api = AlbumDjApi { path, method, body ->
@@ -108,6 +126,28 @@ class AlbumDjApiTest {
     }
 
     @Test
+    fun `adding a discovered album sends its metadata with the stack`() {
+        val requested = mutableListOf<Triple<String, String, String?>>()
+        val api = AlbumDjApi { path, method, body ->
+            requested += Triple(path, method, body)
+            """{"albumIds":["blue"],"albums":[]}"""
+        }
+        val album = Album(
+            id = "blue",
+            title = "Blue",
+            artist = "Joni Mitchell",
+            imageUrl = "https://img/blue.jpg",
+            artistId = "joni",
+        )
+
+        api.updateRotation(listOf("blue"), durationDays = 14, mode = "shuffle", albums = listOf(album))
+
+        val body = org.json.JSONObject(requested.single().third!!)
+        assertEquals("blue", body.getJSONArray("albums").getJSONObject(0).getString("id"))
+        assertEquals("joni", body.getJSONArray("albums").getJSONObject(0).getString("artistId"))
+    }
+
+    @Test
     fun `saving favourite albums sends the shared Firebase collection`() {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val api = AlbumDjApi { path, method, body ->
@@ -117,7 +157,7 @@ class AlbumDjApiTest {
 
         api.saveFavouriteAlbums(
             listOf(
-                com.dylanwatson.albumdj.library.Album(
+                Album(
                     id = "blue",
                     title = "Blue",
                     artist = "Joni Mitchell",
@@ -133,5 +173,23 @@ class AlbumDjApiTest {
         val album = org.json.JSONObject(request.third!!).getJSONArray("albums").getJSONObject(0)
         assertEquals("blue", album.getString("id"))
         assertEquals("joni", album.getString("artistId"))
+    }
+
+    @Test
+    fun `saving favourite artists sends the shared Firebase collection`() {
+        val requested = mutableListOf<Triple<String, String, String?>>()
+        val api = AlbumDjApi { path, method, body ->
+            requested += Triple(path, method, body)
+            "[]"
+        }
+
+        api.saveFavouriteArtists(listOf(Artist("joni", "Joni Mitchell", "https://img/joni.jpg")))
+
+        val request = requested.single()
+        assertEquals("/api/favourite-artists", request.first)
+        assertEquals("PUT", request.second)
+        val artist = org.json.JSONObject(request.third!!).getJSONArray("artists").getJSONObject(0)
+        assertEquals("joni", artist.getString("id"))
+        assertEquals("Joni Mitchell", artist.getString("name"))
     }
 }

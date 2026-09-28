@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import com.dylanwatson.albumdj.library.Album
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
@@ -107,6 +108,21 @@ class AlbumDjRepository(context: Context) {
 
     fun search(query: String): SearchResults = api().search(query)
 
+    fun artistAlbums(artistId: String): List<Album> = api().artistAlbums(artistId)
+
+    fun addAlbumToStack(album: Album): AlbumDjAccount {
+        val payload = cache.load() ?: error("Refresh your Album DJ library first")
+        val account = payload.account
+        if (album.id in account.rotation.albumIds) return account
+        val rotationJson = api().updateRotation(
+            albumIds = account.rotation.albumIds + album.id,
+            durationDays = account.rotation.durationDays,
+            mode = account.rotation.mode,
+            albums = listOf(album),
+        )
+        return payload.copy(rotationJson = rotationJson).also(cache::save).account
+    }
+
     fun ejectAlbum(albumId: String): AlbumDjAccount {
         val payload = cache.load() ?: error("Refresh your Album DJ library first")
         val account = payload.account
@@ -118,15 +134,33 @@ class AlbumDjRepository(context: Context) {
         return payload.copy(rotationJson = rotationJson).also(cache::save).account
     }
 
-    fun setAlbumFavourite(albumId: String, favourite: Boolean): AlbumDjAccount {
+    fun setAlbumFavourite(album: Album, favourite: Boolean): AlbumDjAccount {
         val payload = cache.load() ?: error("Refresh your Album DJ library first")
+        return setAlbumFavourite(payload, album, favourite)
+    }
+
+    fun setArtistFavourite(artist: Artist, favourite: Boolean): AlbumDjAccount {
+        val payload = cache.load() ?: error("Refresh your Album DJ library first")
+        val current = payload.account.favouriteArtists
+        val artists = if (favourite) {
+            (current + artist).distinctBy { it.id }
+        } else {
+            current.filterNot { it.id == artist.id }
+        }
+        val artistsJson = api().saveFavouriteArtists(artists)
+        return payload.copy(artistsJson = artistsJson).also(cache::save).account
+    }
+
+    private fun setAlbumFavourite(
+        payload: AlbumDjPayload,
+        album: Album,
+        favourite: Boolean,
+    ): AlbumDjAccount {
         val account = payload.account
-        val album = account.library.stack.firstOrNull { it.id == albumId }
-            ?: error("That album is no longer in your stack")
         val albums = if (favourite) {
             (account.library.favourites + album).distinctBy { it.id }
         } else {
-            account.library.favourites.filterNot { it.id == albumId }
+            account.library.favourites.filterNot { it.id == album.id }
         }
         val favouritesJson = api().saveFavouriteAlbums(albums)
         return payload.copy(favouritesJson = favouritesJson).also(cache::save).account

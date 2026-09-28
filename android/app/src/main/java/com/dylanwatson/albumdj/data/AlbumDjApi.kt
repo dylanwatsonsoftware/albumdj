@@ -57,31 +57,55 @@ class AlbumDjApi(
         )
     }
 
-    fun updateRotation(albumIds: List<String>, durationDays: Int, mode: String): String {
+    fun artistAlbums(artistId: String): List<Album> {
+        val encodedId = URLEncoder.encode(artistId, "UTF-8").replace("+", "%20")
+        return JSONArray(transport.request("/api/spotify/artists/$encodedId/albums", "GET", null)).toAlbums()
+    }
+
+    fun updateRotation(
+        albumIds: List<String>,
+        durationDays: Int,
+        mode: String,
+        albums: List<Album> = emptyList(),
+    ): String {
         val body = JSONObject()
             .put("albumIds", JSONArray(albumIds))
             .put("durationDays", durationDays)
             .put("mode", mode)
-            .toString()
-        return transport.request("/api/rotation", "PUT", body)
+        if (albums.isNotEmpty()) body.put("albums", JSONArray(albums.map(::albumJson)))
+        return transport.request("/api/rotation", "PUT", body.toString())
     }
 
     fun saveFavouriteAlbums(albums: List<Album>): String {
-        val encoded = albums.map { album ->
-            JSONObject()
-                .put("id", album.id)
-                .put("title", album.title)
-                .put("artist", album.artist)
-                .put("imageUrl", album.imageUrl)
-                .put("artistId", album.artistId)
-        }
+        val encoded = albums.map(::albumJson)
         return transport.request(
             "/api/favourite-albums",
             "PUT",
             JSONObject().put("albums", JSONArray(encoded)).toString(),
         )
     }
+
+    fun saveFavouriteArtists(artists: List<Artist>): String {
+        val encoded = artists.map { artist ->
+            JSONObject()
+                .put("id", artist.id)
+                .put("name", artist.name)
+                .put("imageUrl", artist.imageUrl)
+        }
+        return transport.request(
+            "/api/favourite-artists",
+            "PUT",
+            JSONObject().put("artists", JSONArray(encoded)).toString(),
+        )
+    }
 }
+
+private fun albumJson(album: Album) = JSONObject()
+    .put("id", album.id)
+    .put("title", album.title)
+    .put("artist", album.artist)
+    .put("imageUrl", album.imageUrl)
+    .put("artistId", album.artistId)
 
 private fun JSONArray?.toAlbums(): List<Album> {
     if (this == null) return emptyList()
