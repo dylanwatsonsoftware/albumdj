@@ -67,6 +67,28 @@ class AlbumDjApiTest {
     }
 
     @Test
+    fun `search encodes the query and maps album and artist results`() {
+        val requested = mutableListOf<Triple<String, String, String?>>()
+        val api = AlbumDjApi { path, method, body ->
+            requested += Triple(path, method, body)
+            """{
+                "albums":[{"id":"blue","title":"Blue","artist":"Joni Mitchell","artistId":"joni","imageUrl":"https://img/blue.jpg"}],
+                "artists":[{"id":"joni","name":"Joni Mitchell","imageUrl":"https://img/joni.jpg"}]
+            }""".trimIndent()
+        }
+
+        val results = api.search("Joni Mitchell / Blue")
+
+        assertEquals(
+            listOf(Triple("/api/spotify/search?q=Joni%20Mitchell%20%2F%20Blue", "GET", null)),
+            requested,
+        )
+        assertEquals("Blue", results.albums.single().title)
+        assertEquals("joni", results.albums.single().artistId)
+        assertEquals("Joni Mitchell", results.artists.single().name)
+    }
+
+    @Test
     fun `ejecting an album preserves the stack settings`() {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val api = AlbumDjApi { path, method, body ->

@@ -22,6 +22,11 @@ data class AlbumDjPayload(
 
 data class AlbumPlayback(val openUrl: String?)
 
+data class SearchResults(
+    val albums: List<Album>,
+    val artists: List<Artist>,
+)
+
 class AlbumDjApi(
     private val transport: AlbumDjTransport,
 ) {
@@ -41,6 +46,15 @@ class AlbumDjApi(
 
     fun playStack() {
         transport.request("/api/rotation/play", "POST", null)
+    }
+
+    fun search(query: String): SearchResults {
+        val encodedQuery = URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
+        val response = JSONObject(transport.request("/api/spotify/search?q=$encodedQuery", "GET", null))
+        return SearchResults(
+            albums = response.optJSONArray("albums").toAlbums(),
+            artists = response.optJSONArray("artists").toArtists(),
+        )
     }
 
     fun updateRotation(albumIds: List<String>, durationDays: Int, mode: String): String {
@@ -66,5 +80,39 @@ class AlbumDjApi(
             "PUT",
             JSONObject().put("albums", JSONArray(encoded)).toString(),
         )
+    }
+}
+
+private fun JSONArray?.toAlbums(): List<Album> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            val album = optJSONObject(index) ?: continue
+            val id = album.optString("id")
+            val title = album.optString("title")
+            if (id.isBlank() || title.isBlank()) continue
+            add(
+                Album(
+                    id = id,
+                    title = title,
+                    artist = album.optString("artist"),
+                    imageUrl = album.optString("imageUrl").takeIf(String::isNotBlank),
+                    artistId = album.optString("artistId").takeIf(String::isNotBlank),
+                ),
+            )
+        }
+    }
+}
+
+private fun JSONArray?.toArtists(): List<Artist> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            val artist = optJSONObject(index) ?: continue
+            val id = artist.optString("id")
+            val name = artist.optString("name")
+            if (id.isBlank() || name.isBlank()) continue
+            add(Artist(id, name, artist.optString("imageUrl").takeIf(String::isNotBlank)))
+        }
     }
 }

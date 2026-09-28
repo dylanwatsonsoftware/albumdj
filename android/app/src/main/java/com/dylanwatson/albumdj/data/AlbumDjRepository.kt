@@ -105,6 +105,8 @@ class AlbumDjRepository(context: Context) {
 
     fun playStack() = api().playStack()
 
+    fun search(query: String): SearchResults = api().search(query)
+
     fun ejectAlbum(albumId: String): AlbumDjAccount {
         val payload = cache.load() ?: error("Refresh your Album DJ library first")
         val account = payload.account

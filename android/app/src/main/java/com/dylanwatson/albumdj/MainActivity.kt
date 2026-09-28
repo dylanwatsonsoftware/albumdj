@@ -31,10 +31,13 @@ import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +59,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,6 +68,7 @@ import coil.compose.AsyncImage
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumDjRepository
 import com.dylanwatson.albumdj.data.Artist
+import com.dylanwatson.albumdj.data.SearchResults
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
@@ -149,6 +154,8 @@ private fun AlbumDjApp(
     var loading by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var carPreview by remember { mutableStateOf(false) }
+    var searchResults by remember { mutableStateOf<SearchResults?>(null) }
+    var searchLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(sessionToken, authRevision, refresh) {
@@ -196,6 +203,16 @@ private fun AlbumDjApp(
             loading = false
         }
     }
+    val search: (String) -> Unit = { query ->
+        error = null
+        searchLoading = true
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { repository.search(query) } }
+                .onSuccess { searchResults = it }
+                .onFailure { error = it.message }
+            searchLoading = false
+        }
+    }
     val setAlbumFavourite: (String, Boolean) -> Unit = { albumId, favourite ->
         error = null
         loading = true
@@ -223,6 +240,9 @@ private fun AlbumDjApp(
                 refresh = { refresh += 1 },
                 preview = { carPreview = true },
                 playAlbum = playAlbum,
+                searchResults = searchResults,
+                searchLoading = searchLoading,
+                search = search,
                 playStack = playStack,
                 ejectAlbum = ejectAlbum,
                 setAlbumFavourite = setAlbumFavourite,
@@ -243,6 +263,9 @@ private fun AlbumDjPhone(
     refresh: () -> Unit,
     preview: () -> Unit,
     playAlbum: (String) -> Unit,
+    searchResults: SearchResults?,
+    searchLoading: Boolean,
+    search: (String) -> Unit,
     playStack: () -> Unit,
     ejectAlbum: (String) -> Unit,
     setAlbumFavourite: (String, Boolean) -> Unit,
@@ -256,7 +279,17 @@ private fun AlbumDjPhone(
             if (loading || error != null) StatusStrip(loading, error)
             Box(Modifier.weight(1f)) {
                 when (section) {
-                    PhoneSection.DISCOVER -> DiscoverScreen(library, { section = PhoneSection.COLLECTION }, { section = PhoneSection.STACK }, playAlbum)
+                    PhoneSection.DISCOVER -> DiscoverScreen(
+                        library,
+                        connected,
+                        searchResults,
+                        searchLoading,
+                        search,
+                        { section = PhoneSection.COLLECTION },
+                        { section = PhoneSection.STACK },
+                        playAlbum,
+                        openArtist,
+                    )
                     PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum)
                     PhoneSection.STACK -> StackScreen(library, stackPlaybackAction(account), playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
                     PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, reauthorize, refresh, preview)
@@ -329,11 +362,66 @@ private fun Label(text: String) {
 }
 
 @Composable
-private fun DiscoverScreen(library: AlbumDjLibrary, openCollection: () -> Unit, openStack: () -> Unit, playAlbum: (String) -> Unit) {
+private fun DiscoverScreen(
+    library: AlbumDjLibrary,
+    connected: Boolean,
+    searchResults: SearchResults?,
+    searchLoading: Boolean,
+    search: (String) -> Unit,
+    openCollection: () -> Unit,
+    openStack: () -> Unit,
+    playAlbum: (String) -> Unit,
+    openArtist: (String, String) -> Unit,
+) {
     val recent = albumsForPhoneSection(PhoneSection.DISCOVER, library)
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
+    var query by remember { mutableStateOf("") }
+    val submitSearch = { if (query.isNotBlank() && !searchLoading) search(query.trim()) }
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Discover", "Find your next album", "New releases from artists you love, with your current rotation always close by.") }
+        item {
+            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Raised).padding(16.dp)) {
+                Label("Search Spotify")
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    enabled = connected && !searchLoading,
+                    singleLine = true,
+                    label = { Text("Artist or album") },
+                    placeholder = { Text("Try Joni Mitchell or Blue") },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = submitSearch,
+                    enabled = connected && query.isNotBlank() && !searchLoading,
+                    colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                ) {
+                    Text(if (searchLoading) "SEARCHING…" else "SEARCH SPOTIFY", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+                if (!connected) Text("Connect Spotify in Settings to search its catalogue.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 9.dp))
+            }
+        }
+        if (searchResults != null) {
+            if (searchResults.artists.isNotEmpty()) {
+                item { CollectionHeading("Artists") }
+                item { ArtistShelf(searchResults.artists, openArtist) }
+            }
+            if (searchResults.albums.isNotEmpty()) {
+                item { CollectionHeading("Albums") }
+                items(searchResults.albums.chunked(2)) { rowAlbums ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowAlbums.forEach { album -> Box(Modifier.weight(1f)) { GridAlbumCard(album.asLibraryNode(), playAlbum) } }
+                        if (rowAlbums.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+            if (searchResults.albums.isEmpty() && searchResults.artists.isEmpty()) {
+                item { EmptyCard("No matches", "Try another artist or album name.") }
+            }
+        }
         item {
             DarkFeatureCard(
                 eyebrow = "Fresh arrivals",
@@ -436,13 +524,16 @@ private fun CollectionHeading(title: String) {
 }
 
 @Composable
-private fun ArtistShelf(artists: List<Artist>) {
+private fun ArtistShelf(artists: List<Artist>, openArtist: ((String, String) -> Unit)? = null) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         items(artists, key = { it.id }) { artist ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(94.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(94.dp).then(if (openArtist == null) Modifier else Modifier.clickable { openArtist(artist.id, artist.name) }),
+            ) {
                 Box(
                     Modifier.size(88.dp).clip(CircleShape).background(Raised),
                     contentAlignment = Alignment.Center,
