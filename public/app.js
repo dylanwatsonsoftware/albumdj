@@ -80,6 +80,7 @@ const rotationMode = document.querySelector("#rotation-mode");
 const rotationPlayButton = document.querySelector("#rotation-play");
 const rotationSpotifyReconnect = document.querySelector("#rotation-spotify-reconnect");
 const rotationAlbumsElement = document.querySelector("#rotation-albums");
+const rotationTableBodyElement = document.querySelector("#rotation-table-body");
 const searchForm = document.querySelector("#album-search-form");
 const searchInput = document.querySelector("#album-search");
 const searchSuggestionsElement = document.querySelector("#search-suggestions");
@@ -1179,21 +1180,30 @@ function renderRotation() {
 
   rotationAlbumsElement.hidden = rotation.albums.length === 0;
   const albumById = new Map(rotation.albums.map((album) => [album.id, album]));
-  rotationAlbumsElement.replaceChildren(...getRotationSlots(rotation.albums).map((slot) => {
+  const targetElement = rotationTableBodyElement || rotationAlbumsElement;
+  targetElement.replaceChildren(...getRotationSlots(rotation.albums).map((slot) => {
     const album = albumById.get(slot.albumId);
-    const item = document.createElement("article");
-    item.className = "rotation-album";
-    item.classList.toggle("playing", livePlayback?.album?.id === album.id && livePlayback.isPlaying);
-    item.setAttribute("role", "listitem");
+    const row = document.createElement("tr");
+    row.className = "stack-table-row";
+    row.classList.toggle("playing", livePlayback?.album?.id === album.id && livePlayback.isPlaying);
 
-    const playButton = document.createElement("button");
-    playButton.className = "rotation-slot-play";
-    playButton.type = "button";
-    playButton.setAttribute("aria-label", `Play ${album.title} by ${album.artist}`);
-    playButton.addEventListener("click", () => scanAlbum(album.id));
+    const slotCell = document.createElement("td");
+    slotCell.className = "stack-td-slot";
+    const slotBadge = document.createElement("span");
+    slotBadge.className = "stack-disc-badge";
+    slotBadge.textContent = slot.discLabel;
+    slotCell.append(slotBadge);
+
+    const albumCell = document.createElement("td");
+    albumCell.className = "stack-td-album";
+    const albumPlayButton = document.createElement("button");
+    albumPlayButton.type = "button";
+    albumPlayButton.className = "stack-album-play";
+    albumPlayButton.setAttribute("aria-label", `Play ${album.title} by ${album.artist}`);
+    albumPlayButton.addEventListener("click", () => scanAlbum(album.id));
 
     const artwork = document.createElement("span");
-    artwork.className = "rotation-album-art";
+    artwork.className = "stack-album-art";
     if (album.imageUrl) {
       const image = document.createElement("img");
       image.src = album.imageUrl;
@@ -1201,40 +1211,57 @@ function renderRotation() {
       image.loading = "lazy";
       artwork.append(image);
     }
-
-    const copy = document.createElement("span");
-    copy.className = "rotation-album-copy";
-    const position = document.createElement("small");
-    position.textContent = slot.discLabel;
     const title = document.createElement("strong");
+    title.className = "stack-album-title";
     title.textContent = album.title;
-    const artist = document.createElement("span");
-    artist.textContent = album.artist;
-    copy.append(position, title, artist);
+    albumPlayButton.append(artwork, title);
+    albumCell.append(albumPlayButton);
 
-    const removeButton = document.createElement("button");
-    removeButton.className = "rotation-remove";
-    removeButton.type = "button";
-    removeButton.textContent = "Eject";
-    removeButton.setAttribute("aria-label", `Remove ${album.title} from rotation`);
-    removeButton.addEventListener("click", async () => {
-      removeButton.disabled = true;
-      await saveRotation(removeRotationAlbum(rotation.albumIds, album.id));
-    });
+    const artistCell = document.createElement("td");
+    artistCell.className = "stack-td-artist";
+    const artistName = document.createElement("span");
+    artistName.className = "stack-artist-name";
+    artistName.textContent = album.artist;
+    artistCell.append(artistName);
 
-    const itemActions = document.createElement("div");
-    itemActions.className = "rotation-item-actions";
+    const actionsCell = document.createElement("td");
+    actionsCell.className = "stack-td-actions";
+    const actionsContainer = document.createElement("div");
+    actionsContainer.className = "stack-actions-group";
+
+    const playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.className = "stack-action-btn stack-action-play";
+    playButton.textContent = "Play";
+    playButton.setAttribute("aria-label", `Play ${album.title}`);
+    playButton.addEventListener("click", () => scanAlbum(album.id));
+
     const actions = getRotationAlbumActions();
     const favourite = actions.includes("favourite") ? favouriteAlbumButton(album) : null;
     favourite?.classList.add("rotation-favourite");
-    const viewArtistButton = artistAlbumsButton(album, "rotation-artist");
 
-    playButton.append(artwork, copy);
-    if (favourite) itemActions.append(favourite);
-    if (actions.includes("artist") && viewArtistButton) itemActions.append(viewArtistButton);
-    itemActions.append(removeButton);
-    item.append(playButton, itemActions);
-    return item;
+    const viewArtistButton = actions.includes("artist")
+      ? artistAlbumsButton(album, "rotation-artist")
+      : null;
+
+    const ejectButton = document.createElement("button");
+    ejectButton.className = "rotation-remove stack-action-eject";
+    ejectButton.type = "button";
+    ejectButton.textContent = "Eject";
+    ejectButton.setAttribute("aria-label", `Remove ${album.title} from rotation`);
+    ejectButton.addEventListener("click", async () => {
+      ejectButton.disabled = true;
+      await saveRotation(removeRotationAlbum(rotation.albumIds, album.id));
+    });
+
+    if (actions.includes("play")) actionsContainer.append(playButton);
+    if (favourite) actionsContainer.append(favourite);
+    if (viewArtistButton) actionsContainer.append(viewArtistButton);
+    if (actions.includes("remove")) actionsContainer.append(ejectButton);
+    actionsCell.append(actionsContainer);
+
+    row.append(slotCell, albumCell, artistCell, actionsCell);
+    return row;
   }));
 }
 

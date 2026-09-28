@@ -5,6 +5,7 @@ import {
   getRotationAlbumActions,
   getRotationPlaybackMessage,
   getRotationSlots,
+  getStackTableColumns,
   removeRotationAlbum,
   toggleRotationAlbum,
 } from "../public/rotation.js";
@@ -31,6 +32,15 @@ test("turns the album stack into numbered playable changer slots", () => {
 
 test("lets every loaded album be played, favourited, explored, or ejected", () => {
   assert.deepEqual(getRotationAlbumActions(), ["play", "favourite", "artist", "remove"]);
+});
+
+test("exposes the column structure for the stack albums table", () => {
+  assert.deepEqual(getStackTableColumns(), [
+    { key: "disc", label: "Disc" },
+    { key: "album", label: "Album" },
+    { key: "artist", label: "Artist" },
+    { key: "actions", label: "Actions" },
+  ]);
 });
 
 test("describes where a shuffled stack started and exposes playback failures", () => {

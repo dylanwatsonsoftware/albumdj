@@ -143,7 +143,21 @@
           <label>Play as<select id="rotation-mode"><option value="sequential">Albums in order</option><option value="shuffle">Shuffle every song</option></select></label>
           <button id="rotation-play" class="rotation-play" type="button" disabled>Play stack</button>
           <a id="rotation-spotify-reconnect" class="rotation-spotify-reconnect" href="/api/auth/spotify" hidden>Reconnect Spotify once to enable stack playback →</a>
-          <div id="rotation-albums" class="rotation-albums" role="list" aria-label="Albums loaded in Album DJ" hidden></div>
+          <div id="rotation-albums" class="rotation-albums" hidden>
+            <div class="stack-table-shell">
+              <table class="stack-table" aria-label="Albums loaded in Album DJ">
+                <thead>
+                  <tr>
+                    <th scope="col" class="stack-th-slot">Disc</th>
+                    <th scope="col" class="stack-th-album">Album</th>
+                    <th scope="col" class="stack-th-artist">Artist</th>
+                    <th scope="col" class="stack-th-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="rotation-table-body"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
         <div id="albums" class="album-grid" hidden></div>
       </section>

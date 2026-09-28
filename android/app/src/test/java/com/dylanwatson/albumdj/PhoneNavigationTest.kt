@@ -13,11 +13,16 @@ class PhoneNavigationTest {
     )
 
     @Test
-    fun `phone navigation mirrors the web app sections`() {
+    fun `stack is the first phone navigation tab`() {
         assertEquals(
-            listOf("Discover", "Collection", "Stack", "Settings"),
+            listOf("Stack", "Discover", "Collection", "Settings"),
             PhoneSection.entries.map { it.label },
         )
+    }
+
+    @Test
+    fun `stack is the default phone section`() {
+        assertEquals(PhoneSection.STACK, DEFAULT_PHONE_SECTION)
     }
 
     @Test
@@ -26,5 +31,11 @@ class PhoneNavigationTest {
         assertEquals(listOf("Favourite album"), albumsForPhoneSection(PhoneSection.COLLECTION, library).map { it.title })
         assertEquals(listOf("Stack album"), albumsForPhoneSection(PhoneSection.STACK, library).map { it.title })
         assertEquals(emptyList<String>(), albumsForPhoneSection(PhoneSection.SETTINGS, library).map { it.title })
+    }
+
+    @Test
+    fun `playable album id is extracted from library node`() {
+        val node = library.children(AlbumDjLibrary.STACK_ID).first()
+        assertEquals("stack", node.albumId())
     }
 }

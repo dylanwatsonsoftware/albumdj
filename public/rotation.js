@@ -21,6 +21,15 @@ export function getRotationAlbumActions() {
   return ["play", "favourite", "artist", "remove"];
 }
 
+export function getStackTableColumns() {
+  return [
+    { key: "disc", label: "Disc" },
+    { key: "album", label: "Album" },
+    { key: "artist", label: "Artist" },
+    { key: "actions", label: "Actions" },
+  ];
+}
+
 export function getRotationPlaybackMessage({ result, error } = {}) {
   if (error) return `Couldn’t play stack. ${error.message}`;
   if (!result) return "Starting your stack on Spotify…";

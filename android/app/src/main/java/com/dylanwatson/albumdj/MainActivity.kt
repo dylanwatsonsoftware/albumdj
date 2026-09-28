@@ -190,7 +190,7 @@ private fun AlbumDjPhone(
     playAlbum: (String) -> Unit,
     playStack: () -> Unit,
 ) {
-    var section by remember { mutableStateOf(PhoneSection.DISCOVER) }
+    var section by remember { mutableStateOf(DEFAULT_PHONE_SECTION) }
     val library = account?.library ?: AlbumDjLibrary.demo()
     Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -441,6 +441,7 @@ private fun GridAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
 private fun StackScreen(library: AlbumDjLibrary, playAlbum: (String) -> Unit, playStack: () -> Unit) {
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
     val pagerState = rememberPagerState(pageCount = { stack.size })
+    val coroutineScope = rememberCoroutineScope()
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Multi-disc changer", "Your album stack", "Flick through this focused rotation or start every loaded album.") }
         if (stack.isEmpty()) {
@@ -456,15 +457,25 @@ private fun StackScreen(library: AlbumDjLibrary, playAlbum: (String) -> Unit, pl
                     modifier = Modifier.fillMaxWidth().height(252.dp),
                 ) { page ->
                     val distance = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+                    val album = stack[page]
                     AlbumArtwork(
-                        stack[page],
-                        Modifier.padding(vertical = 11.dp).fillMaxWidth().aspectRatio(1f).graphicsLayer {
-                            scaleX = 1f - distance * .18f
-                            scaleY = 1f - distance * .18f
-                            rotationY = if (page < pagerState.currentPage) 42f * distance else -42f * distance
-                            alpha = 1f - distance * .24f
-                            cameraDistance = 14f * density
-                        },
+                        album,
+                        Modifier
+                            .padding(vertical = 11.dp)
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .graphicsLayer {
+                                scaleX = 1f - distance * .18f
+                                scaleY = 1f - distance * .18f
+                                rotationY = if (page < pagerState.currentPage) 42f * distance else -42f * distance
+                                alpha = 1f - distance * .24f
+                                cameraDistance = 14f * density
+                            }
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable {
+                                coroutineScope.launch { pagerState.animateScrollToPage(page) }
+                                playAlbum(album.albumId())
+                            },
                         18,
                     )
                 }
@@ -535,8 +546,6 @@ private fun AlbumArtwork(album: LibraryNode, modifier: Modifier, radius: Int) {
         }
     }
 }
-
-private fun LibraryNode.albumId() = id.removePrefix("album:")
 
 @Composable
 private fun PhoneNavigation(selected: PhoneSection, select: (PhoneSection) -> Unit) {
