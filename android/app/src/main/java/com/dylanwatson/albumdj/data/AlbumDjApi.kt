@@ -108,6 +108,7 @@ private fun albumJson(album: Album) = JSONObject()
     .put("artist", album.artist)
     .put("imageUrl", album.imageUrl)
     .put("artistId", album.artistId)
+    .put("releaseDate", album.releaseDate)
 
 private fun JSONArray?.toAlbums(): List<Album> {
     if (this == null) return emptyList()
@@ -124,6 +125,7 @@ private fun JSONArray?.toAlbums(): List<Album> {
                     artist = album.optString("artist"),
                     imageUrl = album.optString("imageUrl").takeIf(String::isNotBlank),
                     artistId = album.optString("artistId").takeIf(String::isNotBlank),
+                    releaseDate = album.optString("releaseDate").takeIf(String::isNotBlank),
                 ),
             )
         }

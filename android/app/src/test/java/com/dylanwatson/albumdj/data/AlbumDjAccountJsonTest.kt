@@ -15,7 +15,7 @@ class AlbumDjAccountJsonTest {
             favouritesJson = """[{"id":"fav-1","title":"Blue","artist":"Joni Mitchell"}]""",
             artistsJson = """[{"id":"artist-1","name":"Joni Mitchell","imageUrl":"https://img/artist.jpg"}]""",
             recentJson = """[{"id":"new-1","title":"Cutouts","artist":"The Smile","releaseDate":"2026-08-01"}]""",
-            savedJson = """[{"id":"saved-1","title":"Hejira","artist":"Joni Mitchell"}]""",
+            savedJson = """[{"id":"saved-1","title":"Hejira","artist":"Joni Mitchell","releaseDate":"1976-11-22"}]""",
         )
 
         assertTrue(account.connected)
@@ -29,6 +29,7 @@ class AlbumDjAccountJsonTest {
         assertEquals(listOf("Blue"), account.library.children(AlbumDjLibrary.FAVOURITES_ID).map { it.title })
         assertEquals(listOf("Cutouts"), account.library.children(AlbumDjLibrary.RECENT_ID).map { it.title })
         assertEquals(listOf("Hejira"), account.library.saved.map { it.title })
+        assertEquals("1976-11-22", account.library.saved.single().releaseDate)
         assertEquals(listOf("Joni Mitchell"), account.favouriteArtists.map { it.name })
         assertEquals("https://img/artist.jpg", account.favouriteArtists.single().imageUrl)
     }

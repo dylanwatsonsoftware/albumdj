@@ -97,6 +97,7 @@ private fun JSONArray?.toAlbums(): List<Album> {
                     artist = album.optString("artist"),
                     imageUrl = album.optString("imageUrl").takeIf(String::isNotBlank),
                     artistId = album.optString("artistId").takeIf(String::isNotBlank),
+                    releaseDate = album.optString("releaseDate").takeIf(String::isNotBlank),
                 ),
             )
         }

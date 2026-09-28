@@ -6,6 +6,7 @@ data class Album(
     val artist: String,
     val imageUrl: String? = null,
     val artistId: String? = null,
+    val releaseDate: String? = null,
 )
 
 data class LibraryNode(
@@ -15,6 +16,7 @@ data class LibraryNode(
     val browsable: Boolean = false,
     val playable: Boolean = false,
     val imageUrl: String? = null,
+    val releaseDate: String? = null,
 )
 
 class AlbumDjLibrary(
@@ -44,6 +46,7 @@ class AlbumDjLibrary(
                 subtitle = album.artist,
                 playable = true,
                 imageUrl = album.imageUrl,
+                releaseDate = album.releaseDate,
             )
         }
 

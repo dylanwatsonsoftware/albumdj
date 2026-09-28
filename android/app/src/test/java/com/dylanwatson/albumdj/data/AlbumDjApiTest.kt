@@ -96,7 +96,7 @@ class AlbumDjApiTest {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val api = AlbumDjApi { path, method, body ->
             requested += Triple(path, method, body)
-            """[{"id":"blue","title":"Blue","artist":"Joni Mitchell","artistId":"joni"}]"""
+            """[{"id":"blue","title":"Blue","artist":"Joni Mitchell","artistId":"joni","releaseDate":"1971-06-22"}]"""
         }
 
         val albums = api.artistAlbums("joni/mitchell")
@@ -106,6 +106,7 @@ class AlbumDjApiTest {
             requested,
         )
         assertEquals("Blue", albums.single().title)
+        assertEquals("1971-06-22", albums.single().releaseDate)
     }
 
     @Test
@@ -140,6 +141,7 @@ class AlbumDjApiTest {
             artist = "Joni Mitchell",
             imageUrl = "https://img/blue.jpg",
             artistId = "joni",
+            releaseDate = "1971-06-22",
         )
 
         api.updateRotation(listOf("blue"), durationDays = 14, mode = "shuffle", albums = listOf(album))
@@ -147,6 +149,7 @@ class AlbumDjApiTest {
         val body = org.json.JSONObject(requested.single().third!!)
         assertEquals("blue", body.getJSONArray("albums").getJSONObject(0).getString("id"))
         assertEquals("joni", body.getJSONArray("albums").getJSONObject(0).getString("artistId"))
+        assertEquals("1971-06-22", body.getJSONArray("albums").getJSONObject(0).getString("releaseDate"))
     }
 
     @Test

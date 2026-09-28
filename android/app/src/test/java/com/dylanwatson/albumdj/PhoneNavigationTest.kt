@@ -162,6 +162,41 @@ class PhoneNavigationTest {
         assertEquals(listOf("In Rainbows"), discoverAlbumIdeas(discoverLibrary, "rain").map { it.title })
     }
 
+    @Test
+    fun `album release year is shown when Spotify supplies a date`() {
+        assertEquals("1971", albumReleaseYear("1971-06-22"))
+        assertEquals("2026", albumReleaseYear("2026"))
+        assertEquals(null, albumReleaseYear(null))
+        assertEquals(null, albumReleaseYear(""))
+    }
+
+    @Test
+    fun `favourite artist action is visibly selected`() {
+        assertEquals(
+            ArtistFavouriteAction("☆ Favourite artist", false),
+            artistFavouriteAction(false),
+        )
+        assertEquals(
+            ArtistFavouriteAction("★ Favourite artist", true),
+            artistFavouriteAction(true),
+        )
+    }
+
+    @Test
+    fun `opening an artist from discover clears the temporary search mode`() {
+        assertEquals(true, shouldClearSearchWhenOpeningArtist(PhoneSection.DISCOVER))
+        assertEquals(false, shouldClearSearchWhenOpeningArtist(PhoneSection.COLLECTION))
+        assertEquals(false, shouldClearSearchWhenOpeningArtist(PhoneSection.STACK))
+    }
+
+    @Test
+    fun `stack playback action is the first control after the heading`() {
+        assertEquals(
+            listOf(StackContentSection.PLAYBACK, StackContentSection.COVERFLOW, StackContentSection.ALBUM_DETAILS, StackContentSection.ALBUM_LIST),
+            stackContentSections(hasAlbums = true),
+        )
+    }
+
     private fun account(connected: Boolean, playlistAccess: Boolean) = AlbumDjAccount(
         connected = connected,
         playlistAccess = playlistAccess,

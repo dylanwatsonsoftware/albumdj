@@ -363,6 +363,7 @@ private fun AlbumDjPhone(
                             addAlbumToStack = addAlbumToStack,
                             setAlbumFavourite = setAlbumFavourite,
                             setArtistFavourite = setArtistFavourite,
+                            backLabel = "Back to ${section.label}",
                         )
                     } else when (section) {
                         PhoneSection.DISCOVER -> DiscoverScreen(
@@ -377,7 +378,10 @@ private fun AlbumDjPhone(
                             playAlbum,
                             addAlbumToStack,
                             setAlbumFavourite,
-                            openArtist,
+                            { artist ->
+                                if (shouldClearSearchWhenOpeningArtist(section)) clearSearch()
+                                openArtist(artist)
+                            },
                         )
                         PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum, openArtist)
                         PhoneSection.STACK -> StackScreen(library, stackPlaybackAction(account), playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
@@ -615,7 +619,7 @@ private fun DiscoveryAlbumCard(
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Panel).padding(10.dp)) {
         AlbumArtwork(album.asLibraryNode(), Modifier.fillMaxWidth().aspectRatio(1f).clickable { playAlbum(album.id) }, 13)
         Text(album.title, color = Ink, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        Text(album.artist, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+        Text(album.artistAndYear(), color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
         StackAction(if (inStack) "✓ In stack" else "+ Add to stack", Modifier.fillMaxWidth()) {
             if (!inStack) addAlbumToStack(album)
         }
@@ -658,7 +662,7 @@ private fun CompactAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
     Column(Modifier.width(154.dp).clickable { playAlbum(album.albumId()) }) {
         AlbumArtwork(album, Modifier.fillMaxWidth().aspectRatio(1f), 15)
         Text(album.title, color = Ink, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
-        Text(album.subtitle.orEmpty(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        Text(album.artistAndYear(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         Text("TAP TO PLAY", color = Acid, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 6.dp))
     }
 }
@@ -885,12 +889,16 @@ private fun String.initials(): String = trim()
     .take(2)
     .joinToString("") { it.take(1).uppercase() }
 
+private fun Album.artistAndYear(): String = listOfNotNull(artist, albumReleaseYear(releaseDate)).joinToString(" · ")
+
+private fun LibraryNode.artistAndYear(): String = listOfNotNull(subtitle, albumReleaseYear(releaseDate)).joinToString(" · ")
+
 @Composable
 private fun GridAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().clickable { playAlbum(album.albumId()) }) {
         AlbumArtwork(album, Modifier.fillMaxWidth().aspectRatio(1f), 15)
         Text(album.title, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        Text(album.subtitle.orEmpty(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        Text(album.artistAndYear(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         Text("TAP TO PLAY", color = Acid, fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 6.dp))
     }
 }
@@ -914,7 +922,7 @@ private fun AlbumActionCard(
             AlbumArtwork(album.asLibraryNode(), Modifier.size(82.dp), 12)
             Column(Modifier.padding(start = 13.dp).weight(1f)) {
                 Text(album.title, color = Ink, fontSize = 18.sp, lineHeight = 21.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(album.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                Text(album.artistAndYear(), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 11.dp)) {
@@ -951,11 +959,12 @@ private fun ArtistDetailScreen(
     addAlbumToStack: (Album) -> Unit,
     setAlbumFavourite: (Album, Boolean) -> Unit,
     setArtistFavourite: (Artist, Boolean) -> Unit,
+    backLabel: String,
 ) {
     LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
         item {
             Text(
-                "← BACK",
+                "← ${backLabel.uppercase()}",
                 color = Acid,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -975,8 +984,19 @@ private fun ArtistDetailScreen(
                 Column(Modifier.padding(start = 16.dp).weight(1f)) {
                     Label("Artist discography")
                     Text(artist.name, color = Ink, fontSize = 29.sp, lineHeight = 31.sp, fontWeight = FontWeight.Black)
-                    OutlinedButton(onClick = { setArtistFavourite(artist, !favourite) }, modifier = Modifier.padding(top = 10.dp)) {
-                        Text(if (favourite) "★ Favourite artist" else "☆ Favourite artist", color = Ink, fontWeight = FontWeight.Bold)
+                    val favouriteAction = artistFavouriteAction(favourite)
+                    if (favouriteAction.selected) {
+                        Button(
+                            onClick = { setArtistFavourite(artist, false) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+                            modifier = Modifier.padding(top = 10.dp),
+                        ) {
+                            Text(favouriteAction.label, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        OutlinedButton(onClick = { setArtistFavourite(artist, true) }, modifier = Modifier.padding(top = 10.dp)) {
+                            Text(favouriteAction.label, color = Ink, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -1020,6 +1040,7 @@ private fun StackScreen(
     openArtist: (Artist) -> Unit,
 ) {
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
+    val contentSections = stackContentSections(stack.isNotEmpty())
     val pagerState = rememberPagerState(pageCount = { stack.size })
     val coroutineScope = rememberCoroutineScope()
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -1027,6 +1048,9 @@ private fun StackScreen(
         if (stack.isEmpty()) {
             item { EmptyCard("Nothing loaded", "Add albums to your stack on the web, then refresh in Settings.") }
         } else {
+            if (contentSections.firstOrNull() == StackContentSection.PLAYBACK) {
+                item { StackPlaybackCard(stack.size, playbackAction, playStack) }
+            }
             item {
                 HorizontalPager(
                     state = pagerState,
@@ -1065,36 +1089,8 @@ private fun StackScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp)) {
                     Label("Disc ${pagerState.currentPage + 1} of ${stack.size}")
                     Text(selected.title, color = Ink, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
-                    Text(selected.subtitle.orEmpty(), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+                    Text(selected.artistAndYear(), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
                     OutlinedButton(onClick = { playAlbum(selected.albumId()) }, modifier = Modifier.padding(top = 12.dp)) { Text("Play this album", color = Ink, fontWeight = FontWeight.Bold) }
-                }
-            }
-            item {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel).padding(18.dp)) {
-                    Label("Album DJ · multi-disc changer")
-                    Text("Play the complete stack", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        when (playbackAction) {
-                            StackPlaybackAction.PLAY -> "${stack.size} albums are loaded in the same order shown above."
-                            StackPlaybackAction.REAUTHORIZE -> "Reconnect Spotify once to let Album DJ create your private stack playlist."
-                            StackPlaybackAction.CONNECT -> "Connect Spotify to play all ${stack.size} loaded albums."
-                        },
-                        color = Muted,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 5.dp, bottom = 14.dp),
-                    )
-                    Button(onClick = playStack, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk), modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                        Text(
-                            when (playbackAction) {
-                                StackPlaybackAction.PLAY -> "PLAY STACK"
-                                StackPlaybackAction.REAUTHORIZE -> "RECONNECT SPOTIFY"
-                                StackPlaybackAction.CONNECT -> "CONNECT SPOTIFY"
-                            },
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.5.sp,
-                        )
-                    }
                 }
             }
             item { CollectionHeading("Loaded albums") }
@@ -1108,6 +1104,35 @@ private fun StackScreen(
                     openArtist = openArtist,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun StackPlaybackCard(albumCount: Int, playbackAction: StackPlaybackAction, playStack: () -> Unit) {
+    Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel).padding(16.dp)) {
+        Label("Ready to listen")
+        Text(
+            when (playbackAction) {
+                StackPlaybackAction.PLAY -> "$albumCount loaded album${if (albumCount == 1) "" else "s"} · play the complete stack"
+                StackPlaybackAction.REAUTHORIZE -> "Reconnect Spotify to play this stack"
+                StackPlaybackAction.CONNECT -> "Connect Spotify to play this stack"
+            },
+            color = Muted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+        Button(onClick = playStack, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk), modifier = Modifier.fillMaxWidth().height(50.dp)) {
+            Text(
+                when (playbackAction) {
+                    StackPlaybackAction.PLAY -> "PLAY STACK"
+                    StackPlaybackAction.REAUTHORIZE -> "RECONNECT SPOTIFY"
+                    StackPlaybackAction.CONNECT -> "CONNECT SPOTIFY"
+                },
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp,
+            )
         }
     }
 }
@@ -1132,7 +1157,7 @@ private fun StackAlbumRow(
             AlbumArtwork(album.asLibraryNode(), Modifier.size(62.dp), 10)
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                 Text(album.title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(album.artist, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                Text(album.artistAndYear(), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
             }
             Text("PLAY", color = Acid, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         }
@@ -1177,6 +1202,7 @@ private fun Album.asLibraryNode() = LibraryNode(
     subtitle = artist,
     playable = true,
     imageUrl = imageUrl,
+    releaseDate = releaseDate,
 )
 
 @Composable

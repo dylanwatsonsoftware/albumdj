@@ -22,6 +22,18 @@ enum class StackPlaybackAction {
     CONNECT,
 }
 
+enum class StackContentSection {
+    PLAYBACK,
+    COVERFLOW,
+    ALBUM_DETAILS,
+    ALBUM_LIST,
+}
+
+data class ArtistFavouriteAction(
+    val label: String,
+    val selected: Boolean,
+)
+
 enum class CollectionKind {
     ALL,
     ARTISTS,
@@ -91,6 +103,30 @@ fun discoverAlbumIdeas(library: AlbumDjLibrary, query: String): List<Album> {
             it.title.contains(search, ignoreCase = true) ||
             it.artist.contains(search, ignoreCase = true)
     }
+}
+
+fun albumReleaseYear(releaseDate: String?): String? = releaseDate
+    ?.trim()
+    ?.takeIf { it.length >= 4 }
+    ?.take(4)
+    ?.takeIf { year -> year.all(Char::isDigit) }
+
+fun artistFavouriteAction(favourite: Boolean) = ArtistFavouriteAction(
+    label = if (favourite) "★ Favourite artist" else "☆ Favourite artist",
+    selected = favourite,
+)
+
+fun shouldClearSearchWhenOpeningArtist(section: PhoneSection): Boolean = section == PhoneSection.DISCOVER
+
+fun stackContentSections(hasAlbums: Boolean): List<StackContentSection> = if (hasAlbums) {
+    listOf(
+        StackContentSection.PLAYBACK,
+        StackContentSection.COVERFLOW,
+        StackContentSection.ALBUM_DETAILS,
+        StackContentSection.ALBUM_LIST,
+    )
+} else {
+    emptyList()
 }
 
 fun stackPlaybackAction(account: AlbumDjAccount?): StackPlaybackAction = when {
