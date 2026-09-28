@@ -73,10 +73,12 @@ import kotlinx.coroutines.withContext
 import kotlin.math.absoluteValue
 
 private const val MOBILE_CONNECT_URL = "https://albumdj.vercel.app/api/mobile/connect"
+private const val MOBILE_REAUTHORIZE_URL = "https://albumdj.vercel.app/api/auth/spotify?mobile=1"
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: AlbumDjRepository
     private var sessionToken by mutableStateOf<String?>(null)
+    private var authRevision by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,7 +89,9 @@ class MainActivity : ComponentActivity() {
             AlbumDjApp(
                 repository = repository,
                 sessionToken = sessionToken,
+                authRevision = authRevision,
                 connect = { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MOBILE_CONNECT_URL))) },
+                reauthorize = { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MOBILE_REAUTHORIZE_URL))) },
                 openArtist = { artistId, artistName ->
                     val url = "https://albumdj.vercel.app/#artist/${Uri.encode(artistId)}?name=${Uri.encode(artistName)}"
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -117,6 +121,7 @@ class MainActivity : ComponentActivity() {
             ?: return
         repository.acceptToken(token)
         sessionToken = token
+        authRevision += 1
     }
 }
 
@@ -133,7 +138,9 @@ private val DeepInk = Color(0xFF11130F)
 private fun AlbumDjApp(
     repository: AlbumDjRepository,
     sessionToken: String?,
+    authRevision: Int,
     connect: () -> Unit,
+    reauthorize: () -> Unit,
     openArtist: (String, String) -> Unit,
     openSpotify: (String) -> Unit,
 ) {
@@ -144,7 +151,7 @@ private fun AlbumDjApp(
     var carPreview by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(sessionToken, refresh) {
+    LaunchedEffect(sessionToken, authRevision, refresh) {
         if (sessionToken == null) return@LaunchedEffect
         loading = true
         error = null
@@ -165,12 +172,18 @@ private fun AlbumDjApp(
         }
     }
     val playStack: () -> Unit = {
-        error = null
-        loading = true
-        scope.launch {
-            runCatching { withContext(Dispatchers.IO) { repository.playStack() } }
-                .onFailure { error = it.message }
-            loading = false
+        when (stackPlaybackAction(account)) {
+            StackPlaybackAction.CONNECT -> connect()
+            StackPlaybackAction.REAUTHORIZE -> reauthorize()
+            StackPlaybackAction.PLAY -> {
+                error = null
+                loading = true
+                scope.launch {
+                    runCatching { withContext(Dispatchers.IO) { repository.playStack() } }
+                        .onFailure { error = it.message }
+                    loading = false
+                }
+            }
         }
     }
     val ejectAlbum: (String) -> Unit = { albumId ->
@@ -206,6 +219,7 @@ private fun AlbumDjApp(
                 loading = loading,
                 error = error,
                 connect = connect,
+                reauthorize = reauthorize,
                 refresh = { refresh += 1 },
                 preview = { carPreview = true },
                 playAlbum = playAlbum,
@@ -225,6 +239,7 @@ private fun AlbumDjPhone(
     loading: Boolean,
     error: String?,
     connect: () -> Unit,
+    reauthorize: () -> Unit,
     refresh: () -> Unit,
     preview: () -> Unit,
     playAlbum: (String) -> Unit,
@@ -243,8 +258,8 @@ private fun AlbumDjPhone(
                 when (section) {
                     PhoneSection.DISCOVER -> DiscoverScreen(library, { section = PhoneSection.COLLECTION }, { section = PhoneSection.STACK }, playAlbum)
                     PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum)
-                    PhoneSection.STACK -> StackScreen(library, playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
-                    PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, refresh, preview)
+                    PhoneSection.STACK -> StackScreen(library, stackPlaybackAction(account), playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
+                    PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, reauthorize, refresh, preview)
                 }
             }
             PhoneNavigation(section) { section = it }
@@ -483,6 +498,7 @@ private fun GridAlbumCard(album: LibraryNode, playAlbum: (String) -> Unit) {
 @Composable
 private fun StackScreen(
     library: AlbumDjLibrary,
+    playbackAction: StackPlaybackAction,
     playAlbum: (String) -> Unit,
     playStack: () -> Unit,
     ejectAlbum: (String) -> Unit,
@@ -543,9 +559,27 @@ private fun StackScreen(
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel).padding(18.dp)) {
                     Label("Album DJ · multi-disc changer")
                     Text("Play the complete stack", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("${stack.size} albums are loaded in the same order shown above.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp, bottom = 14.dp))
+                    Text(
+                        when (playbackAction) {
+                            StackPlaybackAction.PLAY -> "${stack.size} albums are loaded in the same order shown above."
+                            StackPlaybackAction.REAUTHORIZE -> "Reconnect Spotify once to let Album DJ create your private stack playlist."
+                            StackPlaybackAction.CONNECT -> "Connect Spotify to play all ${stack.size} loaded albums."
+                        },
+                        color = Muted,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 5.dp, bottom = 14.dp),
+                    )
                     Button(onClick = playStack, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk), modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                        Text("PLAY STACK", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Text(
+                            when (playbackAction) {
+                                StackPlaybackAction.PLAY -> "PLAY STACK"
+                                StackPlaybackAction.REAUTHORIZE -> "RECONNECT SPOTIFY"
+                                StackPlaybackAction.CONNECT -> "CONNECT SPOTIFY"
+                            },
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                        )
                     }
                 }
             }
@@ -632,13 +666,14 @@ private fun Album.asLibraryNode() = LibraryNode(
 )
 
 @Composable
-private fun SettingsScreen(account: AlbumDjAccount?, connected: Boolean, connect: () -> Unit, refresh: () -> Unit, preview: () -> Unit) {
+private fun SettingsScreen(account: AlbumDjAccount?, connected: Boolean, connect: () -> Unit, reauthorize: () -> Unit, refresh: () -> Unit, preview: () -> Unit) {
+    val needsPlaylistAccess = account?.connected == true && !account.playlistAccess
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Setup", "Settings", "Manage the same Spotify and Firebase-backed account used by Album DJ on the web.") }
         item {
-            SettingsCard("Spotify + Album DJ account", if (connected) "Connected as ${account?.profileName ?: "Spotify listener"}. Your favourite artists, favourite albums, and stack come from this account." else "Sign in through the Album DJ website to connect this app to the same Spotify account and Firebase library.") {
-                Button(onClick = if (connected) refresh else connect, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk)) {
-                    Text(if (connected) "Refresh library" else "Connect Spotify", fontWeight = FontWeight.Bold)
+            SettingsCard("Spotify + Album DJ account", if (needsPlaylistAccess) "Reconnect once to grant the private-playlist permission used by Play stack." else if (connected) "Connected as ${account?.profileName ?: "Spotify listener"}. Your favourite artists, favourite albums, and stack come from this account." else "Sign in through the Album DJ website to connect this app to the same Spotify account and Firebase library.") {
+                Button(onClick = if (needsPlaylistAccess) reauthorize else if (connected) refresh else connect, colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk)) {
+                    Text(if (needsPlaylistAccess) "Reconnect Spotify" else if (connected) "Refresh library" else "Connect Spotify", fontWeight = FontWeight.Bold)
                 }
             }
         }

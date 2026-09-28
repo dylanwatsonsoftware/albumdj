@@ -2,6 +2,7 @@ package com.dylanwatson.albumdj.data
 
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -9,7 +10,7 @@ class AlbumDjAccountJsonTest {
     @Test
     fun `decodes a connected Firebase-backed account into the car library`() {
         val account = AlbumDjAccountJson.decode(
-            statusJson = """{"connected":true,"profile":{"displayName":"Dylan"}}""",
+            statusJson = """{"connected":true,"playlistAccess":true,"profile":{"displayName":"Dylan"}}""",
             rotationJson = """{"albumIds":["stack-1"],"durationDays":14,"mode":"shuffle","albums":[{"id":"stack-1","title":"Discovery","artist":"Daft Punk","artistId":"daft-punk","imageUrl":"https://img/stack.jpg"}]}""",
             favouritesJson = """[{"id":"fav-1","title":"Blue","artist":"Joni Mitchell"}]""",
             artistsJson = """[{"id":"artist-1","name":"Joni Mitchell","imageUrl":"https://img/artist.jpg"}]""",
@@ -17,6 +18,7 @@ class AlbumDjAccountJsonTest {
         )
 
         assertTrue(account.connected)
+        assertTrue(account.playlistAccess)
         assertEquals("Dylan", account.profileName)
         assertEquals(listOf("Discovery"), account.library.children(AlbumDjLibrary.STACK_ID).map { it.title })
         assertEquals("daft-punk", account.library.stack.single().artistId)
@@ -40,6 +42,7 @@ class AlbumDjAccountJsonTest {
         )
 
         assertEquals(null, account.profileName)
+        assertFalse(account.playlistAccess)
         assertTrue(account.library.children(AlbumDjLibrary.STACK_ID).isEmpty())
         assertTrue(account.favouriteArtists.isEmpty())
     }

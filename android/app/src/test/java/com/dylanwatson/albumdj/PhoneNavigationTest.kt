@@ -1,5 +1,7 @@
 package com.dylanwatson.albumdj
 
+import com.dylanwatson.albumdj.data.AlbumDjAccount
+import com.dylanwatson.albumdj.data.Rotation
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import org.junit.Assert.assertEquals
@@ -38,4 +40,38 @@ class PhoneNavigationTest {
         val node = library.children(AlbumDjLibrary.STACK_ID).first()
         assertEquals("stack", node.albumId())
     }
+
+    @Test
+    fun `stack playback asks connected accounts without playlist scope to reauthorize`() {
+        assertEquals(
+            StackPlaybackAction.REAUTHORIZE,
+            stackPlaybackAction(account(connected = true, playlistAccess = false)),
+        )
+    }
+
+    @Test
+    fun `stack playback plays once playlist scope is granted`() {
+        assertEquals(
+            StackPlaybackAction.PLAY,
+            stackPlaybackAction(account(connected = true, playlistAccess = true)),
+        )
+    }
+
+    @Test
+    fun `stack playback asks disconnected accounts to connect`() {
+        assertEquals(StackPlaybackAction.CONNECT, stackPlaybackAction(null))
+        assertEquals(
+            StackPlaybackAction.CONNECT,
+            stackPlaybackAction(account(connected = false, playlistAccess = false)),
+        )
+    }
+
+    private fun account(connected: Boolean, playlistAccess: Boolean) = AlbumDjAccount(
+        connected = connected,
+        playlistAccess = playlistAccess,
+        profileName = null,
+        favouriteArtists = emptyList(),
+        rotation = Rotation(emptyList(), 7, "sequential"),
+        library = AlbumDjLibrary(emptyList(), emptyList(), emptyList()),
+    )
 }

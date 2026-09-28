@@ -7,6 +7,7 @@ import org.json.JSONObject
 
 data class AlbumDjAccount(
     val connected: Boolean,
+    val playlistAccess: Boolean,
     val profileName: String?,
     val favouriteArtists: List<Artist>,
     val rotation: Rotation,
@@ -38,6 +39,7 @@ object AlbumDjAccountJson {
         val rotation = JSONObject(rotationJson)
         return AlbumDjAccount(
             connected = status.optBoolean("connected"),
+            playlistAccess = status.optBoolean("playlistAccess"),
             profileName = profile?.optString("displayName")?.takeIf(String::isNotBlank),
             favouriteArtists = JSONArray(artistsJson).toArtists(),
             rotation = Rotation(
