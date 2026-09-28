@@ -194,6 +194,41 @@ test("plays an album found through Spotify search on the selected device", async
   }, { spotify });
 });
 
+test("falls back to opening a discovered album in Spotify when the selected device is stale", async () => {
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getAlbum: async (id) => ({
+      id,
+      title: "Blue",
+      artist: "Joni Mitchell",
+      spotifyUri: `spotify:album:${id}`,
+      spotifyUrl: `https://open.spotify.com/album/${id}`,
+    }),
+    playAlbum: async () => {
+      const error = new Error("Spotify playback failed (404): Device not found");
+      error.status = 404;
+      throw error;
+    },
+  };
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/spotify/albums/blue/play`, { method: "POST" });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      album: {
+        id: "blue",
+        title: "Blue",
+        artist: "Joni Mitchell",
+        spotifyUri: "spotify:album:blue",
+        spotifyUrl: "https://open.spotify.com/album/blue",
+      },
+      target: null,
+      mode: "spotify-open",
+      openUrl: "https://open.spotify.com/album/blue",
+    });
+  }, { spotify });
+});
+
 test("showcases recent albums from favourite artists with bounded concurrency", async () => {
   let activeRequests = 0;
   let maximumConcurrentRequests = 0;
@@ -454,6 +489,29 @@ test("refreshes Spotify devices and starts the scanned album on the selected dev
       deviceId: "desktop-1",
       spotifyUri: "spotify:album:2noRn2Aes5aoNVsU6iWThc",
     });
+  }, { spotify });
+});
+
+test("falls back to opening a saved album in Spotify when no playback device exists", async () => {
+  const spotify = {
+    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    getAvailableDevices: async () => [],
+    playAlbum: async () => { throw new Error("Playback should not be attempted without a target"); },
+  };
+
+  await withServer(async (baseUrl) => {
+    await fetch(`${baseUrl}/api/spotify/devices`, { method: "POST" });
+    const response = await fetch(`${baseUrl}/api/play`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albumId: "discovery" }),
+    });
+
+    assert.equal(response.status, 200);
+    const playback = await response.json();
+    assert.equal(playback.mode, "spotify-open");
+    assert.equal(playback.target, null);
+    assert.equal(playback.openUrl, "https://open.spotify.com/album/2noRn2Aes5aoNVsU6iWThc");
   }, { spotify });
 });
 

@@ -55,6 +55,7 @@ import {
   routeFromHash,
   writeNavigationHistory,
 } from "./navigation.js";
+import { spotifyOpenUrl } from "./playback-fallback.js";
 
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
@@ -984,6 +985,7 @@ async function playDiscoveredAlbum(albumId, button) {
   button.textContent = "Starting…";
   try {
     const playback = await request(`/api/spotify/albums/${encodeURIComponent(albumId)}/play`, { method: "POST" });
+    if (openSpotifyFallback(playback)) return;
     showPlayback(playback);
     setTimeout(() => playbackMonitor?.refresh(), 800);
   } finally {
@@ -1380,11 +1382,19 @@ async function scanAlbum(albumId) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ albumId }),
     });
+    if (openSpotifyFallback(playback)) return;
     showPlayback(playback);
     setTimeout(() => playbackMonitor?.refresh(), 800);
   } finally {
     setTimeout(() => card?.classList.remove("scanning"), 500);
   }
+}
+
+function openSpotifyFallback(playback) {
+  const url = spotifyOpenUrl(playback);
+  if (!url) return false;
+  window.location.assign(url);
+  return true;
 }
 
 function showPlayback(playback) {

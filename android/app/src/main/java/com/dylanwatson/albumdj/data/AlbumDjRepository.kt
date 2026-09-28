@@ -101,7 +101,7 @@ class AlbumDjRepository(context: Context) {
         return payload.account
     }
 
-    fun playAlbum(albumId: String) = api().playAlbum(albumId)
+    fun playAlbum(albumId: String): AlbumPlayback = api().playAlbum(albumId)
 
     fun playStack() = api().playStack()
 

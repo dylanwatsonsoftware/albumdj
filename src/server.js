@@ -27,6 +27,7 @@ const assets = new Map([
   ["/rotation.js", ["rotation.js", "text/javascript; charset=utf-8"]],
   ["/discovery.js", ["discovery.js", "text/javascript; charset=utf-8"]],
   ["/navigation.js", ["navigation.js", "text/javascript; charset=utf-8"]],
+  ["/playback-fallback.js", ["playback-fallback.js", "text/javascript; charset=utf-8"]],
   ["/.well-known/assetlinks.json", [".well-known/assetlinks.json", "application/json; charset=utf-8"]],
 ]);
 
@@ -52,6 +53,16 @@ function recordCatalogueCooldown(cache, error, timestamp) {
     timestamp + error.retryAfterSeconds * 1_000,
   );
   return true;
+}
+
+function spotifyOpenPlayback(album) {
+  const spotifyAlbumId = album.spotifyUri?.match(/^spotify:album:(.+)$/)?.[1] ?? album.id;
+  return {
+    album,
+    target: null,
+    mode: "spotify-open",
+    openUrl: album.spotifyUrl || `https://open.spotify.com/album/${encodeURIComponent(spotifyAlbumId)}`,
+  };
 }
 
 async function mapSettledWithConcurrency(items, concurrency, mapper) {
@@ -279,7 +290,13 @@ export function createPrototypeHandler(options = {}) {
       if (request.method === "POST" && discoveredPlayMatch) {
         const album = await spotify.getAlbum(decodeURIComponent(discoveredPlayMatch[1]));
         const target = player.snapshot().targets.find(({ id }) => id === player.snapshot().selectedTargetId);
-        await spotify.playAlbum({ deviceId: target.id, spotifyUri: album.spotifyUri });
+        if (!target) return sendJson(response, 200, spotifyOpenPlayback(album));
+        try {
+          await spotify.playAlbum({ deviceId: target.id, spotifyUri: album.spotifyUri });
+        } catch (error) {
+          if (error?.status === 404) return sendJson(response, 200, spotifyOpenPlayback(album));
+          throw error;
+        }
         return sendJson(response, 200, { album, target, mode: "spotify" });
       }
 
@@ -434,10 +451,16 @@ export function createPrototypeHandler(options = {}) {
         const { albumId } = await readJson(request);
         const playback = player.scanAlbum(albumId);
         if (spotify.status().connected && typeof spotify.playAlbum === "function") {
-          await spotify.playAlbum({
-            deviceId: playback.target.id,
-            spotifyUri: playback.album.spotifyUri,
-          });
+          if (!playback.target) return sendJson(response, 200, spotifyOpenPlayback(playback.album));
+          try {
+            await spotify.playAlbum({
+              deviceId: playback.target.id,
+              spotifyUri: playback.album.spotifyUri,
+            });
+          } catch (error) {
+            if (error?.status === 404) return sendJson(response, 200, spotifyOpenPlayback(playback.album));
+            throw error;
+          }
           playback.mode = "spotify";
         }
         await persistPlayer();

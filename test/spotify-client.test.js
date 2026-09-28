@@ -683,6 +683,26 @@ test("preserves Spotify playback error details for recovery", async () => {
   );
 });
 
+test("preserves album playback 404 details for app fallback", async () => {
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
+    if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    return Response.json({ error: { status: 404, message: "Device not found" } }, { status: 404 });
+  };
+  const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
+  await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
+
+  await assert.rejects(
+    spotify.playAlbum({ deviceId: "stale-phone", spotifyUri: "spotify:album:blue" }),
+    (error) => {
+      assert.equal(error.status, 404);
+      assert.match(error.message, /Device not found/);
+      return true;
+    },
+  );
+});
+
 test("restores a connected Spotify session after a server restart", async () => {
   let savedSession = null;
   const sessionStore = {

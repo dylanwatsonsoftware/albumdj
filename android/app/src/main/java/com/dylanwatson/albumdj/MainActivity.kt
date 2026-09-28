@@ -92,6 +92,11 @@ class MainActivity : ComponentActivity() {
                     val url = "https://albumdj.vercel.app/#artist/${Uri.encode(artistId)}?name=${Uri.encode(artistName)}"
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                 },
+                openSpotify = { url ->
+                    val spotifyIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage("com.spotify.music")
+                    runCatching { startActivity(spotifyIntent) }
+                        .onFailure { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                },
             )
         }
     }
@@ -130,6 +135,7 @@ private fun AlbumDjApp(
     sessionToken: String?,
     connect: () -> Unit,
     openArtist: (String, String) -> Unit,
+    openSpotify: (String) -> Unit,
 ) {
     var account by remember { mutableStateOf(repository.cachedAccount()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -153,6 +159,7 @@ private fun AlbumDjApp(
         loading = true
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.playAlbum(albumId) } }
+                .onSuccess { playback -> playback.openUrl?.let(openSpotify) }
                 .onFailure { error = it.message }
             loading = false
         }

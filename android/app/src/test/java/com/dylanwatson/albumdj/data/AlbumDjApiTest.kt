@@ -43,6 +43,17 @@ class AlbumDjApiTest {
     }
 
     @Test
+    fun `play exposes Spotify app fallback returned by the backend`() {
+        val api = AlbumDjApi { _, _, _ ->
+            """{"mode":"spotify-open","openUrl":"https://open.spotify.com/album/blue"}"""
+        }
+
+        val playback = api.playAlbum("blue")
+
+        assertEquals("https://open.spotify.com/album/blue", playback.openUrl)
+    }
+
+    @Test
     fun `play stack uses the same multi-disc changer endpoint as the web app`() {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val api = AlbumDjApi { path, method, body ->

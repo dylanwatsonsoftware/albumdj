@@ -20,6 +20,8 @@ data class AlbumDjPayload(
         get() = AlbumDjAccountJson.decode(statusJson, rotationJson, favouritesJson, artistsJson, recentJson)
 }
 
+data class AlbumPlayback(val openUrl: String?)
+
 class AlbumDjApi(
     private val transport: AlbumDjTransport,
 ) {
@@ -31,9 +33,10 @@ class AlbumDjApi(
         recentJson = transport.request("/api/spotify/favourite-artists/releases", "GET", null),
     )
 
-    fun playAlbum(albumId: String) {
+    fun playAlbum(albumId: String): AlbumPlayback {
         val encodedId = URLEncoder.encode(albumId, "UTF-8").replace("+", "%20")
-        transport.request("/api/spotify/albums/$encodedId/play", "POST", null)
+        val response = JSONObject(transport.request("/api/spotify/albums/$encodedId/play", "POST", null))
+        return AlbumPlayback(response.optString("openUrl").takeIf(String::isNotBlank))
     }
 
     fun playStack() {

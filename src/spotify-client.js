@@ -348,7 +348,7 @@ export function createSpotifyClient({
           body: JSON.stringify({ context_uri: spotifyUri }),
         },
       );
-      if (!response.ok) throw new Error(`Spotify playback failed (${response.status})`);
+      if (!response.ok) throw await spotifyPlaybackError("Spotify playback failed", response);
     },
 
     async getCurrentPlayback() {
