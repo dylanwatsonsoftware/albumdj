@@ -79,6 +79,57 @@ class PhoneNavigationTest {
         )
     }
 
+    @Test
+    fun `collection filters artists and albums together by name`() {
+        val view = collectionView(
+            artists = listOf(
+                com.dylanwatson.albumdj.data.Artist("joni", "Joni Mitchell", null),
+                com.dylanwatson.albumdj.data.Artist("radiohead", "Radiohead", null),
+            ),
+            albums = listOf(
+                Album("blue", "Blue", "Joni Mitchell"),
+                Album("rainbows", "In Rainbows", "Radiohead"),
+            ),
+            query = "joni",
+            kind = CollectionKind.ALL,
+            artistOrder = ArtistOrder.NAME_ASC,
+            albumOrder = AlbumOrder.TITLE_ASC,
+        )
+
+        assertEquals(listOf("Joni Mitchell"), view.artists.map { it.name })
+        assertEquals(listOf("Blue"), view.albums.map { it.title })
+    }
+
+    @Test
+    fun `collection kind hides the other saved music type`() {
+        val artists = listOf(com.dylanwatson.albumdj.data.Artist("joni", "Joni Mitchell", null))
+        val albums = listOf(Album("blue", "Blue", "Joni Mitchell"))
+
+        assertEquals(emptyList<String>(), collectionView(artists, albums, "", CollectionKind.ALBUMS, ArtistOrder.NAME_ASC, AlbumOrder.TITLE_ASC).artists.map { it.name })
+        assertEquals(emptyList<String>(), collectionView(artists, albums, "", CollectionKind.ARTISTS, ArtistOrder.NAME_ASC, AlbumOrder.TITLE_ASC).albums.map { it.title })
+    }
+
+    @Test
+    fun `collection sorts artists and albums independently`() {
+        val view = collectionView(
+            artists = listOf(
+                com.dylanwatson.albumdj.data.Artist("a", "Air", null),
+                com.dylanwatson.albumdj.data.Artist("z", "Zero 7", null),
+            ),
+            albums = listOf(
+                Album("z", "Zooropa", "U2"),
+                Album("a", "Abbey Road", "The Beatles"),
+            ),
+            query = "",
+            kind = CollectionKind.ALL,
+            artistOrder = ArtistOrder.NAME_DESC,
+            albumOrder = AlbumOrder.ARTIST_ASC,
+        )
+
+        assertEquals(listOf("Zero 7", "Air"), view.artists.map { it.name })
+        assertEquals(listOf("Abbey Road", "Zooropa"), view.albums.map { it.title })
+    }
+
     private fun account(connected: Boolean, playlistAccess: Boolean) = AlbumDjAccount(
         connected = connected,
         playlistAccess = playlistAccess,

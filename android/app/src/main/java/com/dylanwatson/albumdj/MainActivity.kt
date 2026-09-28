@@ -586,28 +586,70 @@ private fun CollectionScreen(
     playAlbum: (String) -> Unit,
     openArtist: (Artist) -> Unit,
 ) {
-    val favourites = albumsForPhoneSection(PhoneSection.COLLECTION, library)
+    var query by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf(CollectionKind.ALL) }
+    var artistOrder by remember { mutableStateOf(ArtistOrder.NAME_ASC) }
+    var albumOrder by remember { mutableStateOf(AlbumOrder.TITLE_ASC) }
+    val view = collectionView(artists, library.favourites, query, kind, artistOrder, albumOrder)
+    val hasNoMatches = view.artists.isEmpty() && view.albums.isEmpty()
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             PageIntro(
                 "Saved music",
                 "Your collection",
-                "${artists.size} favourite artist${if (artists.size == 1) "" else "s"} and ${favourites.size} favourite album${if (favourites.size == 1) "" else "s"}, synced with Album DJ on the web.",
+                "${artists.size} favourite artist${if (artists.size == 1) "" else "s"} and ${library.favourites.size} favourite album${if (library.favourites.size == 1) "" else "s"}, synced with Album DJ on the web.",
             )
         }
-        item { CollectionHeading("Favourite artists") }
-        if (artists.isEmpty()) {
-            item { EmptyCard("No favourite artists yet", "Favourite artists on the web and refresh this app to bring them here.") }
-        } else {
-            item { ArtistShelf(artists, openArtist) }
+        item {
+            CollectionControls(
+                query = query,
+                kind = kind,
+                resultCount = view.artists.size + view.albums.size,
+                onQueryChange = { query = it },
+                onKindChange = { kind = it },
+            )
         }
-        item { CollectionHeading("Favourite albums") }
-        if (favourites.isEmpty()) {
-            item { EmptyCard("No favourite albums yet", "Favourite albums on the web and refresh this app to bring them here.") }
-        } else {
-            items(favourites.chunked(2)) { rowAlbums ->
+        if (hasNoMatches) {
+            item {
+                EmptyCard(
+                    if (query.isBlank()) "Nothing saved here yet" else "No collection matches",
+                    if (query.isBlank()) "Favourite artists and albums to build your collection." else "Try another artist or album name, or change the filter.",
+                )
+            }
+        }
+        if (view.artists.isNotEmpty()) {
+            item {
+                CollectionHeading(
+                    title = "Favourite artists",
+                    action = if (artistOrder == ArtistOrder.NAME_ASC) "A–Z" else "Z–A",
+                    onAction = {
+                        artistOrder = if (artistOrder == ArtistOrder.NAME_ASC) ArtistOrder.NAME_DESC else ArtistOrder.NAME_ASC
+                    },
+                )
+            }
+            item { ArtistShelf(view.artists, openArtist) }
+        }
+        if (view.albums.isNotEmpty()) {
+            item {
+                CollectionHeading(
+                    title = "Favourite albums",
+                    action = when (albumOrder) {
+                        AlbumOrder.TITLE_ASC -> "ALBUM A–Z"
+                        AlbumOrder.TITLE_DESC -> "ALBUM Z–A"
+                        AlbumOrder.ARTIST_ASC -> "ARTIST A–Z"
+                    },
+                    onAction = {
+                        albumOrder = when (albumOrder) {
+                            AlbumOrder.TITLE_ASC -> AlbumOrder.TITLE_DESC
+                            AlbumOrder.TITLE_DESC -> AlbumOrder.ARTIST_ASC
+                            AlbumOrder.ARTIST_ASC -> AlbumOrder.TITLE_ASC
+                        }
+                    },
+                )
+            }
+            items(view.albums.chunked(2)) { rowAlbums ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    rowAlbums.forEach { album -> Box(Modifier.weight(1f)) { GridAlbumCard(album, playAlbum) } }
+                    rowAlbums.forEach { album -> Box(Modifier.weight(1f)) { GridAlbumCard(album.asLibraryNode(), playAlbum) } }
                     if (rowAlbums.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
@@ -616,14 +658,69 @@ private fun CollectionScreen(
 }
 
 @Composable
-private fun CollectionHeading(title: String) {
-    Text(
-        title,
-        color = Ink,
-        fontSize = 22.sp,
-        fontWeight = FontWeight.ExtraBold,
-        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-    )
+private fun CollectionControls(
+    query: String,
+    kind: CollectionKind,
+    resultCount: Int,
+    onQueryChange: (String) -> Unit,
+    onKindChange: (CollectionKind) -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            label = { Text("Filter collection") },
+            placeholder = { Text("Artist or album") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        ) {
+            CollectionFilter("All", kind == CollectionKind.ALL, Modifier.weight(1f)) { onKindChange(CollectionKind.ALL) }
+            CollectionFilter("Artists", kind == CollectionKind.ARTISTS, Modifier.weight(1f)) { onKindChange(CollectionKind.ARTISTS) }
+            CollectionFilter("Albums", kind == CollectionKind.ALBUMS, Modifier.weight(1f)) { onKindChange(CollectionKind.ALBUMS) }
+        }
+        Text(
+            "$resultCount saved item${if (resultCount == 1) "" else "s"} shown",
+            color = Muted,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun CollectionFilter(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    if (selected) {
+        Button(
+            onClick = onClick,
+            colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+            contentPadding = PaddingValues(horizontal = 4.dp),
+            modifier = modifier,
+        ) { Text(label.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+    } else {
+        OutlinedButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 4.dp), modifier = modifier) {
+            Text(label.uppercase(), color = Ink, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun CollectionHeading(title: String, action: String? = null, onAction: (() -> Unit)? = null) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 10.dp),
+    ) {
+        Text(title, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+        if (action != null && onAction != null) {
+            OutlinedButton(onClick = onAction, contentPadding = PaddingValues(horizontal = 10.dp)) {
+                Text(action, color = Acid, fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
 }
 
 @Composable
