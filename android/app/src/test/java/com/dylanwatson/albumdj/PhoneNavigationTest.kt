@@ -81,6 +81,13 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `success notices dismiss after a short readable interval`() {
+        assertEquals(3_500L, noticeAutoDismissMillis("Blue was added to your stack."))
+        assertEquals(null, noticeAutoDismissMillis(null))
+        assertEquals(null, noticeAutoDismissMillis(""))
+    }
+
+    @Test
     fun `collection filters artists and albums together by name`() {
         val view = collectionView(
             artists = listOf(

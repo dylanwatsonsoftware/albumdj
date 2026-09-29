@@ -17,6 +17,12 @@ enum class PhoneSection(val label: String, val glyph: String) {
 
 val DEFAULT_PHONE_SECTION = PhoneSection.STACK
 
+const val SUCCESS_NOTICE_DURATION_MS = 3_500L
+
+fun noticeAutoDismissMillis(notice: String?): Long? = notice
+    ?.takeIf(String::isNotBlank)
+    ?.let { SUCCESS_NOTICE_DURATION_MS }
+
 enum class StackPlaybackAction {
     PLAY,
     REAUTHORIZE,

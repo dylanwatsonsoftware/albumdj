@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumDjRepository
 import com.dylanwatson.albumdj.data.Artist
@@ -170,6 +171,13 @@ private fun AlbumDjApp(
             .onSuccess { account = it }
             .onFailure { error = it.message }
         loading = false
+    }
+
+    LaunchedEffect(notice) {
+        val dismissAfter = noticeAutoDismissMillis(notice) ?: return@LaunchedEffect
+        val noticeToDismiss = notice
+        delay(dismissAfter)
+        if (notice == noticeToDismiss) notice = null
     }
 
     val playAlbum: (String) -> Unit = { albumId ->
