@@ -58,6 +58,23 @@ enum class StackAlbumAction {
     EJECT,
 }
 
+data class StackCoverFlowLayout(
+    val coverWidthDp: Int,
+    val pageSpacingDp: Int,
+    val horizontalPaddingDp: Int,
+    val visibleSideCount: Int,
+) {
+    val pageStrideDp: Int get() = coverWidthDp + pageSpacingDp
+    val visibleCoverCount: Int get() = visibleSideCount * 2 + 1
+}
+
+fun stackCoverFlowLayout() = StackCoverFlowLayout(
+    coverWidthDp = 194,
+    pageSpacingDp = -126,
+    horizontalPaddingDp = 96,
+    visibleSideCount = 3,
+)
+
 enum class StackHistoryKind {
     ALL,
     CURRENT,

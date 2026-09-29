@@ -264,6 +264,15 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `stack cover flow exposes seven overlapping albums on a phone`() {
+        val layout = stackCoverFlowLayout()
+
+        assertEquals(7, layout.visibleCoverCount)
+        assertEquals(194, layout.coverWidthDp)
+        assertEquals(68, layout.pageStrideDp)
+    }
+
+    @Test
     fun `stack history filters past albums and sorts by repeat listens`() {
         val history = listOf(
             RotationHistoryEntry(Album("blue", "Blue", "Joni Mitchell"), 1_000, 9_000, 10_000, null, 0, null, 2),

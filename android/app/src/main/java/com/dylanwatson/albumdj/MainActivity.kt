@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import com.dylanwatson.albumdj.data.AlbumDjAccount
@@ -1158,6 +1159,7 @@ private fun StackScreen(
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
     val contentSections = stackContentSections(stack.isNotEmpty(), history.isNotEmpty())
     val pagerState = rememberPagerState(pageCount = { stack.size })
+    val coverFlowLayout = stackCoverFlowLayout()
     val coroutineScope = rememberCoroutineScope()
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Multi-disc changer", "Your album stack", "Flick through this focused rotation or start every loaded album.") }
@@ -1170,25 +1172,32 @@ private fun StackScreen(
             item {
                 HorizontalPager(
                     state = pagerState,
-                    pageSize = PageSize.Fixed(230.dp),
-                    contentPadding = PaddingValues(horizontal = 72.dp),
-                    pageSpacing = (-34).dp,
-                    beyondViewportPageCount = 3,
-                    modifier = Modifier.fillMaxWidth().height(252.dp),
+                    pageSize = PageSize.Fixed(coverFlowLayout.coverWidthDp.dp),
+                    contentPadding = PaddingValues(horizontal = coverFlowLayout.horizontalPaddingDp.dp),
+                    pageSpacing = coverFlowLayout.pageSpacingDp.dp,
+                    beyondViewportPageCount = coverFlowLayout.visibleSideCount,
+                    modifier = Modifier.fillMaxWidth().height(226.dp),
                 ) { page ->
-                    val distance = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+                    val signedDistance = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                    val distance = signedDistance.absoluteValue
+                    val depth = distance.coerceIn(0f, coverFlowLayout.visibleSideCount.toFloat())
                     val album = stack[page]
                     AlbumArtwork(
                         album,
                         Modifier
-                            .padding(vertical = 11.dp)
+                            .padding(vertical = 10.dp)
                             .fillMaxWidth()
                             .aspectRatio(1f)
+                            .zIndex(coverFlowLayout.visibleSideCount - distance)
                             .graphicsLayer {
-                                scaleX = 1f - distance * .18f
-                                scaleY = 1f - distance * .18f
-                                rotationY = if (page < pagerState.currentPage) 42f * distance else -42f * distance
-                                alpha = 1f - distance * .24f
+                                scaleX = 1f - depth * .09f
+                                scaleY = 1f - depth * .09f
+                                rotationY = when {
+                                    signedDistance > 0f -> 52f * distance.coerceAtMost(1f)
+                                    signedDistance < 0f -> -52f * distance.coerceAtMost(1f)
+                                    else -> 0f
+                                }
+                                alpha = 1f - depth * .16f
                                 cameraDistance = 14f * density
                             }
                             .clip(RoundedCornerShape(18.dp))
