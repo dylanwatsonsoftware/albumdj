@@ -234,6 +234,8 @@ fun stackPlaybackAction(account: AlbumDjAccount?): StackPlaybackAction = when {
     else -> StackPlaybackAction.PLAY
 }
 
+fun stackPlaylistOpenUrl(account: AlbumDjAccount?): String? = account?.rotation?.spotifyPlaylistUrl
+
 fun albumPlaybackNotice(playback: AlbumPlayback): String = if (playback.openUrl == null) {
     "Playing on your selected Spotify device."
 } else {

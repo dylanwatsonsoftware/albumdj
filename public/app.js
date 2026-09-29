@@ -24,6 +24,7 @@ import {
   getRotationAlbumActions,
   getRotationPlaybackMessage,
   getRotationSlots,
+  getStackPlaylistOpenUrl,
   removeRotationAlbum,
   toggleRotationAlbum,
 } from "./rotation.js";
@@ -1308,14 +1309,21 @@ async function playRotation() {
     renderRotation();
     return;
   }
+  const cachedPlaylistUrl = getStackPlaylistOpenUrl(rotation);
+  if (cachedPlaylistUrl) window.open(cachedPlaylistUrl, "_blank", "noopener,noreferrer");
   rotationPlayButton.disabled = true;
-  rotationPlayButton.textContent = "Building mix…";
+  rotationPlayButton.textContent = cachedPlaylistUrl ? "Checking stack…" : "Building playlist…";
   rotationPlaybackNotice = getRotationPlaybackMessage();
   document.querySelector("#rotation-status").textContent = rotationPlaybackNotice;
   try {
     const result = await request("/api/rotation/play", { method: "POST" });
+    const playlistUrl = getStackPlaylistOpenUrl(rotation, result);
+    if (!cachedPlaylistUrl && playlistUrl) window.location.assign(playlistUrl);
+    if (result.playlist) {
+      rotation = { ...rotation, spotifyPlaylist: result.playlist };
+      persistUiCache();
+    }
     rotationPlaybackNotice = getRotationPlaybackMessage({ result });
-    setTimeout(() => playbackMonitor?.refresh(), 800);
   } catch (error) {
     rotationPlaybackNotice = getRotationPlaybackMessage({ error });
   } finally {

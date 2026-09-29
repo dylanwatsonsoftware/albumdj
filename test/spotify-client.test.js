@@ -597,6 +597,54 @@ test("builds a private stack playlist and starts it on the selected device", asy
   assert.deepEqual(JSON.parse(playRequest.options.body), { context_uri: "spotify:playlist:stack-1" });
 });
 
+test("syncs and exposes the private stack playlist without starting device playback", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url: String(url), options });
+    if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
+    if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    if (String(url).endsWith("/me/playlists")) return Response.json({ id: "stack-1", uri: "spotify:playlist:stack-1" }, { status: 201 });
+    if (String(url).includes("/playlists/stack-1/items")) return Response.json({ snapshot_id: "snapshot-1" });
+    return new Response(null, { status: 204 });
+  };
+  const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
+  await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
+  requests.length = 0;
+
+  const playlist = await spotify.syncStackPlaylist({ trackUris: ["spotify:track:one"] });
+
+  assert.deepEqual(playlist, {
+    id: "stack-1",
+    uri: "spotify:playlist:stack-1",
+    openUrl: "https://open.spotify.com/playlist/stack-1",
+  });
+  assert.equal(requests.some(({ url }) => url.includes("/me/player/play")), false);
+});
+
+test("clears the stack playlist when the stack becomes empty", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url: String(url), options });
+    if (String(url).includes("/api/token")) return Response.json({ access_token: "access-123", expires_in: 3600 });
+    if (String(url).endsWith("/me")) return Response.json({ id: "listener", display_name: "Dylan" });
+    if (String(url).endsWith("/me/playlists")) return Response.json({ id: "stack-1", uri: "spotify:playlist:stack-1" }, { status: 201 });
+    if (String(url).includes("/playlists/stack-1/items")) return Response.json({ snapshot_id: "snapshot-1" });
+    return new Response(null, { status: 204 });
+  };
+  const spotify = createSpotifyClient({ clientId: "client-123", redirectUri: "https://example.test/callback", fetchImpl, randomBytes: () => Buffer.alloc(32, 7) });
+  const authorizationUrl = new URL(await spotify.beginAuthorization());
+  await spotify.completeAuthorization({ code: "auth-code", state: authorizationUrl.searchParams.get("state") });
+  await spotify.syncStackPlaylist({ trackUris: ["spotify:track:one"] });
+  requests.length = 0;
+
+  await spotify.syncStackPlaylist({ trackUris: [] });
+
+  const replaceRequest = requests.find(({ url }) => url.includes("/playlists/stack-1/items"));
+  assert.equal(replaceRequest.options.method, "PUT");
+  assert.deepEqual(JSON.parse(replaceRequest.options.body), { uris: [] });
+});
+
 test("writes a large stack to its playlist in 100-track batches", async () => {
   const requests = [];
   const sleeps = [];

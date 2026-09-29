@@ -216,12 +216,32 @@ private fun AlbumDjApp(
             StackPlaybackAction.CONNECT -> connect()
             StackPlaybackAction.REAUTHORIZE -> reauthorize()
             StackPlaybackAction.PLAY -> {
+                val cachedPlaylistUrl = stackPlaylistOpenUrl(account)
+                if (cachedPlaylistUrl != null) openSpotify(cachedPlaylistUrl)
                 error = null
                 notice = null
-                loading = true
+                loading = cachedPlaylistUrl == null
                 scope.launch {
                     runCatching { withContext(Dispatchers.IO) { repository.playStack() } }
-                        .onFailure { error = it.message }
+                        .onSuccess { playback ->
+                            val openUrl = playback.openUrl
+                            if (openUrl != null) {
+                                account = account?.let { currentAccount ->
+                                    currentAccount.copy(
+                                        rotation = currentAccount.rotation.copy(spotifyPlaylistUrl = openUrl),
+                                    )
+                                }
+                                if (cachedPlaylistUrl == null) openSpotify(openUrl)
+                            }
+                            notice = "Opened your Album DJ playlist in Spotify."
+                        }
+                        .onFailure {
+                            if (cachedPlaylistUrl == null) {
+                                error = it.message
+                            } else {
+                                notice = "Opened the saved stack playlist. Couldn’t verify updates right now."
+                            }
+                        }
                     loading = false
                 }
             }

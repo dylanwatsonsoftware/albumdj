@@ -11,7 +11,7 @@ class AlbumDjAccountJsonTest {
     fun `decodes a connected Firebase-backed account into the car library`() {
         val account = AlbumDjAccountJson.decode(
             statusJson = """{"connected":true,"playlistAccess":true,"profile":{"displayName":"Dylan"}}""",
-            rotationJson = """{"albumIds":["stack-1"],"durationDays":14,"mode":"shuffle","albums":[{"id":"stack-1","title":"Discovery","artist":"Daft Punk","artistId":"daft-punk","imageUrl":"https://img/stack.jpg"}],"history":[{"albumId":"stack-1","album":{"id":"stack-1","title":"Discovery","artist":"Daft Punk"},"firstAddedAt":1000,"lastAddedAt":1000,"currentAddedAt":1000,"totalDurationMs":0,"timesAdded":1}]}""",
+            rotationJson = """{"albumIds":["stack-1"],"durationDays":14,"mode":"shuffle","spotifyPlaylist":{"openUrl":"https://open.spotify.com/playlist/stack"},"albums":[{"id":"stack-1","title":"Discovery","artist":"Daft Punk","artistId":"daft-punk","imageUrl":"https://img/stack.jpg"}],"history":[{"albumId":"stack-1","album":{"id":"stack-1","title":"Discovery","artist":"Daft Punk"},"firstAddedAt":1000,"lastAddedAt":1000,"currentAddedAt":1000,"totalDurationMs":0,"timesAdded":1}]}""",
             favouritesJson = """[{"id":"fav-1","title":"Blue","artist":"Joni Mitchell"}]""",
             artistsJson = """[{"id":"artist-1","name":"Joni Mitchell","imageUrl":"https://img/artist.jpg"}]""",
             recentJson = """[{"id":"new-1","title":"Cutouts","artist":"The Smile","releaseDate":"2026-08-01"}]""",
@@ -26,6 +26,7 @@ class AlbumDjAccountJsonTest {
         assertEquals(listOf("stack-1"), account.rotation.albumIds)
         assertEquals(14, account.rotation.durationDays)
         assertEquals("shuffle", account.rotation.mode)
+        assertEquals("https://open.spotify.com/playlist/stack", account.rotation.spotifyPlaylistUrl)
         assertEquals(1, account.rotation.history.single().timesAdded)
         assertEquals(1_000L, account.rotation.history.single().currentAddedAt)
         assertEquals(listOf("Blue"), account.library.children(AlbumDjLibrary.FAVOURITES_ID).map { it.title })

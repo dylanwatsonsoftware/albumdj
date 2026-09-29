@@ -19,6 +19,7 @@ data class Rotation(
     val durationDays: Int,
     val mode: String,
     val history: List<RotationHistoryEntry> = emptyList(),
+    val spotifyPlaylistUrl: String? = null,
 )
 
 data class RotationHistoryEntry(
@@ -60,6 +61,9 @@ object AlbumDjAccountJson {
                 durationDays = rotation.optInt("durationDays", 7),
                 mode = rotation.optString("mode", "sequential"),
                 history = rotation.optJSONArray("history").toHistory(),
+                spotifyPlaylistUrl = rotation.optJSONObject("spotifyPlaylist")
+                    ?.optString("openUrl")
+                    ?.takeIf(String::isNotBlank),
             ),
             library = AlbumDjLibrary(
                 stack = rotation.optJSONArray("albums").toAlbums(),

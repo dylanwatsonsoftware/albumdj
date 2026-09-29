@@ -106,7 +106,7 @@ class AlbumDjRepository(context: Context) {
 
     fun playAlbum(albumId: String): AlbumPlayback = api().playAlbum(albumId)
 
-    fun playStack() = api().playStack()
+    fun playStack(): StackPlayback = api().playStack()
 
     fun search(query: String): SearchResults = api().search(query)
 

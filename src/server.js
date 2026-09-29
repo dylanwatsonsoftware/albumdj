@@ -65,6 +65,27 @@ function spotifyOpenPlayback(album) {
   };
 }
 
+async function syncRotationPlaylist(spotify, currentRotation) {
+  const tracksByAlbum = new Map();
+  for (const albumId of currentRotation.albumIds) {
+    tracksByAlbum.set(albumId, await spotify.getAlbumTracks(albumId));
+  }
+  const trackUris = buildRotationQueue({
+    albumIds: currentRotation.albumIds,
+    tracksByAlbum,
+    mode: currentRotation.mode,
+  });
+  const playlist = await spotify.syncStackPlaylist({ trackUris });
+  return { playlist, trackUris };
+}
+
+function rotationWithPlaylist(currentRotation, spotify, playlist = null) {
+  const availablePlaylist = playlist ?? spotify.stackPlaylist?.() ?? null;
+  return availablePlaylist
+    ? { ...currentRotation, spotifyPlaylist: availablePlaylist }
+    : currentRotation;
+}
+
 async function mapSettledWithConcurrency(items, concurrency, mapper) {
   const results = new Array(items.length);
   let nextIndex = 0;
@@ -339,7 +360,7 @@ export function createPrototypeHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/rotation") {
-        return sendJson(response, 200, rotationState(player, rotation));
+        return sendJson(response, 200, rotationWithPlaylist(rotationState(player, rotation), spotify));
       }
 
       if (request.method === "PUT" && url.pathname === "/api/rotation") {
@@ -374,47 +395,30 @@ export function createPrototypeHandler(options = {}) {
           albums: player.snapshot().albums,
         });
         await persistRotation();
-        return sendJson(response, 200, rotationState(player, rotation));
+        const currentRotation = rotationState(player, rotation);
+        let playlist = spotify.stackPlaylist?.() ?? null;
+        const spotifyStatus = spotify.status();
+        if (spotifyStatus.connected && spotifyStatus.playlistAccess && typeof spotify.syncStackPlaylist === "function") {
+          try {
+            ({ playlist } = await syncRotationPlaylist(spotify, currentRotation));
+          } catch {
+            // The rotation is already saved. A later edit or Play stack will retry playlist sync.
+          }
+        }
+        return sendJson(response, 200, rotationWithPlaylist(currentRotation, spotify, playlist));
       }
 
       if (request.method === "POST" && url.pathname === "/api/rotation/play") {
         const currentRotation = rotationState(player, rotation);
         if (!currentRotation.albumIds.length) throw new Error("Add at least one album to the rotation");
-        const tracksByAlbum = new Map();
-        for (const albumId of currentRotation.albumIds) {
-          tracksByAlbum.set(albumId, await spotify.getAlbumTracks(albumId));
-        }
-        const trackUris = buildRotationQueue({
-          albumIds: currentRotation.albumIds,
-          tracksByAlbum,
-          mode: currentRotation.mode,
-        });
+        const { playlist, trackUris } = await syncRotationPlaylist(spotify, currentRotation);
         if (!trackUris.length) throw new Error("No playable tracks found in this rotation");
-        const playerState = player.snapshot();
-        let target = playerState.targets.find(({ id }) => id === playerState.selectedTargetId);
-        if (!target) throw new Error("Choose an available Spotify device before playing the stack");
-        try {
-          await spotify.playTracks({ deviceId: target.id, trackUris });
-        } catch (error) {
-          if (error?.status !== 404 || typeof spotify.getAvailableDevices !== "function") throw error;
-
-          const refreshedTargets = await spotify.getAvailableDevices();
-          const refreshedTarget = refreshedTargets.find(({ name }) => name === target.name);
-          if (!refreshedTarget) {
-            throw new Error(`${target.name} is no longer available in Spotify. Open Spotify on that device, then refresh devices.`);
-          }
-
-          player.replaceTargets(refreshedTargets);
-          player.selectTarget(refreshedTarget.id);
-          await persistPlayer();
-          target = refreshedTarget;
-          await spotify.playTracks({ deviceId: target.id, trackUris });
-        }
         return sendJson(response, 200, {
           albumCount: currentRotation.albumIds.length,
           trackCount: trackUris.length,
           mode: currentRotation.mode,
-          target: { id: target.id, name: target.name },
+          playlist,
+          openUrl: playlist.openUrl,
         });
       }
 

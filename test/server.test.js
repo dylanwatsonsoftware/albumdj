@@ -661,6 +661,45 @@ test("configures and returns the temporary rotation shelf", async () => {
   }, { rotation });
 });
 
+test("keeps the Spotify stack playlist updated when the rotation changes", async () => {
+  let configured = { albumIds: [], durationDays: 7, mode: "sequential", expiresAt: null };
+  const rotation = {
+    snapshot: () => configured,
+    update: (next) => { configured = { ...next, expiresAt: 123 }; return configured; },
+  };
+  const syncedQueues = [];
+  const spotify = {
+    status: () => ({ configured: true, connected: true, playlistAccess: true, profile: { displayName: "Dylan" } }),
+    getAlbumTracks: async (albumId) => [`spotify:track:${albumId}`],
+    syncStackPlaylist: async ({ trackUris }) => {
+      syncedQueues.push(trackUris);
+      return { id: "stack-1", uri: "spotify:playlist:stack-1", openUrl: "https://open.spotify.com/playlist/stack-1" };
+    },
+    stackPlaylist: () => null,
+  };
+
+  await withServer(async (baseUrl) => {
+    const added = await fetch(`${baseUrl}/api/rotation`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albumIds: ["discovery", "currents"], durationDays: 14, mode: "sequential" }),
+    });
+    assert.equal(added.status, 200);
+    assert.equal((await added.json()).spotifyPlaylist.openUrl, "https://open.spotify.com/playlist/stack-1");
+
+    const removed = await fetch(`${baseUrl}/api/rotation`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albumIds: ["currents"], durationDays: 14, mode: "sequential" }),
+    });
+    assert.equal(removed.status, 200);
+    assert.deepEqual(syncedQueues, [
+      ["spotify:track:discovery", "spotify:track:currents"],
+      ["spotify:track:currents"],
+    ]);
+  }, { spotify, rotation });
+});
+
 test("adds a discovered Spotify album to the catalogue and rotation together", async () => {
   const player = createPlayerState({
     targets: [{ id: "speaker", name: "Speaker" }],
@@ -727,12 +766,15 @@ test("drops stale album ids and enriches migrated stack history before the clien
   }, { rotation });
 });
 
-test("plays every track from the rotation shelf", async () => {
-  let playCommand;
+test("writes every track from the rotation shelf to the stack playlist", async () => {
+  let syncedTracks;
   const spotify = {
-    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
+    status: () => ({ configured: true, connected: true, playlistAccess: true, profile: { displayName: "Dylan" } }),
     getAlbumTracks: async (albumId) => [`spotify:track:${albumId}-1`, `spotify:track:${albumId}-2`],
-    playTracks: async (command) => { playCommand = command; },
+    syncStackPlaylist: async ({ trackUris }) => {
+      syncedTracks = trackUris;
+      return { id: "stack-1", uri: "spotify:playlist:stack-1", openUrl: "https://open.spotify.com/playlist/stack-1" };
+    },
   };
   const rotation = {
     snapshot: () => ({ albumIds: ["discovery", "currents"], durationDays: 7, mode: "sequential", expiresAt: 123 }),
@@ -745,60 +787,54 @@ test("plays every track from the rotation shelf", async () => {
       albumCount: 2,
       trackCount: 4,
       mode: "sequential",
-      target: { id: "whole-house", name: "Whole House" },
+      playlist: { id: "stack-1", uri: "spotify:playlist:stack-1", openUrl: "https://open.spotify.com/playlist/stack-1" },
+      openUrl: "https://open.spotify.com/playlist/stack-1",
     });
-    assert.deepEqual(playCommand, {
-      deviceId: "whole-house",
-      trackUris: [
-        "spotify:track:discovery-1", "spotify:track:discovery-2",
-        "spotify:track:currents-1", "spotify:track:currents-2",
-      ],
-    });
+    assert.deepEqual(syncedTracks, [
+      "spotify:track:discovery-1", "spotify:track:discovery-2",
+      "spotify:track:currents-1", "spotify:track:currents-2",
+    ]);
   }, { spotify, rotation });
 });
 
-test("refreshes a stale Spotify device id and retries stack playback", async () => {
+test("prepares an openable stack playlist without requiring a Spotify Connect device", async () => {
   const player = createPlayerState({
-    targets: [{ id: "whole-house-old", name: "Whole House", kind: "speaker", isActive: false }],
+    targets: [{ id: "temporary", name: "Temporary", kind: "phone" }],
     albums: [
       { id: "discovery", title: "Discovery", artist: "Daft Punk", spotifyUri: "spotify:album:discovery" },
     ],
-    defaultTargetId: "whole-house-old",
+    defaultTargetId: "temporary",
   });
+  player.replaceTargets([]);
+  let syncedTracks;
+  const spotify = {
+    status: () => ({ configured: true, connected: true, playlistAccess: true, profile: { displayName: "Dylan" } }),
+    getAlbumTracks: async () => ["spotify:track:discovery-1"],
+    syncStackPlaylist: async ({ trackUris }) => {
+      syncedTracks = trackUris;
+      return { id: "stack-1", uri: "spotify:playlist:stack-1", openUrl: "https://open.spotify.com/playlist/stack-1" };
+    },
+  };
   const rotation = {
     snapshot: () => ({ albumIds: ["discovery"], durationDays: 7, mode: "sequential", expiresAt: 123 }),
   };
-  const playCommands = [];
-  const spotify = {
-    status: () => ({ configured: true, connected: true, profile: { displayName: "Dylan" } }),
-    getAlbumTracks: async () => ["spotify:track:discovery-1"],
-    getAvailableDevices: async () => [
-      { id: "whole-house-new", name: "Whole House", kind: "speaker", isActive: true },
-    ],
-    playTracks: async (command) => {
-      playCommands.push(command);
-      if (playCommands.length === 1) {
-        const error = new Error("Spotify rotation playback failed (404): Device not found");
-        error.status = 404;
-        throw error;
-      }
-    },
-  };
-  let playerSaves = 0;
 
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/rotation/play`, { method: "POST" });
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).target, { id: "whole-house-new", name: "Whole House" });
-    assert.deepEqual(playCommands.map(({ deviceId }) => deviceId), ["whole-house-old", "whole-house-new"]);
-    assert.equal(player.snapshot().selectedTargetId, "whole-house-new");
-    assert.equal(playerSaves, 1);
+    assert.deepEqual(await response.json(), {
+      albumCount: 1,
+      trackCount: 1,
+      mode: "sequential",
+      playlist: { id: "stack-1", uri: "spotify:playlist:stack-1", openUrl: "https://open.spotify.com/playlist/stack-1" },
+      openUrl: "https://open.spotify.com/playlist/stack-1",
+    });
+    assert.deepEqual(syncedTracks, ["spotify:track:discovery-1"]);
   }, {
     contextProvider: async () => ({
       player,
       rotation,
       spotify,
-      persistPlayer: async () => { playerSaves += 1; },
     }),
   });
 });

@@ -32,7 +32,10 @@ export function getStackTableColumns() {
 
 export function getRotationPlaybackMessage({ result, error } = {}) {
   if (error) return `Couldn’t play stack. ${error.message}`;
-  if (!result) return "Starting your stack on Spotify…";
-  const action = result.mode === "shuffle" ? "Shuffling" : "Playing";
-  return `${action} ${result.trackCount} songs from ${result.albumCount} albums on ${result.target.name}.`;
+  if (!result) return "Updating your Album DJ playlist…";
+  return `Opening ${result.trackCount} songs from ${result.albumCount} albums in Spotify.`;
+}
+
+export function getStackPlaylistOpenUrl(rotation, result) {
+  return rotation?.spotifyPlaylist?.openUrl ?? result?.openUrl ?? null;
 }

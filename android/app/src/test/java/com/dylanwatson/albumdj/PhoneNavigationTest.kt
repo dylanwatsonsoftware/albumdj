@@ -67,6 +67,20 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `stack playback can open the cached Spotify playlist without waiting for a refresh`() {
+        val account = account(connected = true, playlistAccess = true).copy(
+            rotation = Rotation(
+                albumIds = listOf("blue"),
+                durationDays = 14,
+                mode = "shuffle",
+                spotifyPlaylistUrl = "https://open.spotify.com/playlist/album-dj",
+            ),
+        )
+
+        assertEquals("https://open.spotify.com/playlist/album-dj", stackPlaylistOpenUrl(account))
+    }
+
+    @Test
     fun `stack playback asks disconnected accounts to connect`() {
         assertEquals(StackPlaybackAction.CONNECT, stackPlaybackAction(null))
         assertEquals(

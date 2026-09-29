@@ -61,12 +61,13 @@ class AlbumDjApiTest {
         val requested = mutableListOf<Triple<String, String, String?>>()
         val api = AlbumDjApi { path, method, body ->
             requested += Triple(path, method, body)
-            "{}"
+            """{"openUrl":"https://open.spotify.com/playlist/album-dj"}"""
         }
 
-        api.playStack()
+        val playback = api.playStack()
 
         assertEquals(listOf(Triple("/api/rotation/play", "POST", null)), requested)
+        assertEquals("https://open.spotify.com/playlist/album-dj", playback.openUrl)
     }
 
     @Test

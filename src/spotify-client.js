@@ -161,7 +161,10 @@ export function createSpotifyClient({
   }
 
   async function ensureStackPlaylist(accessToken) {
-    if (stackPlaylist) return stackPlaylist;
+    if (stackPlaylist) return {
+      ...stackPlaylist,
+      openUrl: stackPlaylist.openUrl ?? `https://open.spotify.com/playlist/${encodeURIComponent(stackPlaylist.id)}`,
+    };
     const response = await fetchImpl("https://api.spotify.com/v1/me/playlists", {
       method: "POST",
       headers: {
@@ -176,7 +179,11 @@ export function createSpotifyClient({
     });
     if (!response.ok) throw await spotifyPlaybackError("Spotify stack playlist setup failed", response);
     const playlist = await response.json();
-    stackPlaylist = { id: playlist.id, uri: playlist.uri ?? `spotify:playlist:${playlist.id}` };
+    stackPlaylist = {
+      id: playlist.id,
+      uri: playlist.uri ?? `spotify:playlist:${playlist.id}`,
+      openUrl: playlist.external_urls?.spotify ?? `https://open.spotify.com/playlist/${encodeURIComponent(playlist.id)}`,
+    };
     await saveSession();
     return stackPlaylist;
   }
@@ -186,6 +193,7 @@ export function createSpotifyClient({
     for (let index = 0; index < trackUris.length; index += MAX_PLAYLIST_ITEMS) {
       batches.push(trackUris.slice(index, index + MAX_PLAYLIST_ITEMS));
     }
+    if (!batches.length) batches.push([]);
     for (const [index, uris] of batches.entries()) {
       const response = await fetchImpl(
         `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/items`,
@@ -200,6 +208,20 @@ export function createSpotifyClient({
       );
       if (!response.ok) throw await spotifyPlaybackError("Spotify stack playlist update failed", response);
     }
+  }
+
+  async function syncStackPlaylist({ trackUris }) {
+    const accessToken = await ensureAccessToken();
+    let playlist = await ensureStackPlaylist(accessToken);
+    try {
+      await writeStackPlaylist({ accessToken, playlistId: playlist.id, trackUris });
+    } catch (error) {
+      if (error?.status !== 404) throw error;
+      stackPlaylist = null;
+      playlist = await ensureStackPlaylist(accessToken);
+      await writeStackPlaylist({ accessToken, playlistId: playlist.id, trackUris });
+    }
+    return playlist;
   }
 
   return {
@@ -423,17 +445,19 @@ export function createSpotifyClient({
       return trackUris;
     },
 
+    stackPlaylist() {
+      if (!stackPlaylist) return null;
+      return {
+        ...stackPlaylist,
+        openUrl: stackPlaylist.openUrl ?? `https://open.spotify.com/playlist/${encodeURIComponent(stackPlaylist.id)}`,
+      };
+    },
+
+    syncStackPlaylist,
+
     async playTracks({ deviceId, trackUris }) {
+      const playlist = await syncStackPlaylist({ trackUris });
       const accessToken = await ensureAccessToken();
-      let playlist = await ensureStackPlaylist(accessToken);
-      try {
-        await writeStackPlaylist({ accessToken, playlistId: playlist.id, trackUris });
-      } catch (error) {
-        if (error?.status !== 404) throw error;
-        stackPlaylist = null;
-        playlist = await ensureStackPlaylist(accessToken);
-        await writeStackPlaylist({ accessToken, playlistId: playlist.id, trackUris });
-      }
       await startPlayback({
         accessToken,
         deviceId,

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getRotationAlbumActions,
   getRotationPlaybackMessage,
+  getStackPlaylistOpenUrl,
   getRotationSlots,
   getStackTableColumns,
   removeRotationAlbum,
@@ -45,10 +46,18 @@ test("exposes the column structure for the stack albums table", () => {
 
 test("describes where a shuffled stack started and exposes playback failures", () => {
   assert.equal(getRotationPlaybackMessage({
-    result: { mode: "shuffle", trackCount: 42, albumCount: 4, target: { name: "Whole House" } },
-  }), "Shuffling 42 songs from 4 albums on Whole House.");
+    result: { mode: "shuffle", trackCount: 42, albumCount: 4 },
+  }), "Opening 42 songs from 4 albums in Spotify.");
   assert.equal(
     getRotationPlaybackMessage({ error: new Error("Spotify rotation playback failed (403)") }),
     "Couldn’t play stack. Spotify rotation playback failed (403)",
   );
+});
+
+test("prefers the cached managed playlist so Spotify can open before a network request", () => {
+  assert.equal(
+    getStackPlaylistOpenUrl({ spotifyPlaylist: { openUrl: "https://open.spotify.com/playlist/cached" } }),
+    "https://open.spotify.com/playlist/cached",
+  );
+  assert.equal(getStackPlaylistOpenUrl({}, { openUrl: "https://open.spotify.com/playlist/fresh" }), "https://open.spotify.com/playlist/fresh");
 });

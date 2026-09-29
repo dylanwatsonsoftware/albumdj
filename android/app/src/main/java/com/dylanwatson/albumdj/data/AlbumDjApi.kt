@@ -22,6 +22,7 @@ data class AlbumDjPayload(
 }
 
 data class AlbumPlayback(val openUrl: String?)
+data class StackPlayback(val openUrl: String?)
 
 data class SearchResults(
     val albums: List<Album>,
@@ -46,8 +47,9 @@ class AlbumDjApi(
         return AlbumPlayback(response.optString("openUrl").takeIf(String::isNotBlank))
     }
 
-    fun playStack() {
-        transport.request("/api/rotation/play", "POST", null)
+    fun playStack(): StackPlayback {
+        val response = JSONObject(transport.request("/api/rotation/play", "POST", null))
+        return StackPlayback(response.optString("openUrl").takeIf(String::isNotBlank))
     }
 
     fun search(query: String): SearchResults {
