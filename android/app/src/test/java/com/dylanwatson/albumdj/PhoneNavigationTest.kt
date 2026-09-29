@@ -2,8 +2,10 @@ package com.dylanwatson.albumdj
 
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumPlayback
+import com.dylanwatson.albumdj.data.Artist
 import com.dylanwatson.albumdj.data.Rotation
 import com.dylanwatson.albumdj.data.RotationHistoryEntry
+import com.dylanwatson.albumdj.data.SearchResults
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import org.junit.Assert.assertEquals
@@ -168,6 +170,58 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `collection sorts albums by newest and oldest release`() {
+        val albums = listOf(
+            Album("unknown", "Unknown", "Artist"),
+            Album("old", "Old", "Artist", releaseDate = "1971-06-22"),
+            Album("new", "New", "Artist", releaseDate = "2026-01-01"),
+        )
+
+        assertEquals(
+            listOf("New", "Old", "Unknown"),
+            collectionView(emptyList(), albums, "", CollectionKind.ALBUMS, ArtistOrder.NAME_ASC, AlbumOrder.RELEASE_DESC).albums.map { it.title },
+        )
+        assertEquals(
+            listOf("Old", "New", "Unknown"),
+            collectionView(emptyList(), albums, "", CollectionKind.ALBUMS, ArtistOrder.NAME_ASC, AlbumOrder.RELEASE_ASC).albums.map { it.title },
+        )
+    }
+
+    @Test
+    fun `autocomplete waits for a useful query and limits mixed suggestions`() {
+        assertEquals(false, shouldRequestSearchSuggestions("a"))
+        assertEquals(true, shouldRequestSearchSuggestions("  ab "))
+        val suggestions = searchSuggestions(
+            SearchResults(
+                albums = listOf(Album("blue", "Blue", "Joni Mitchell"), Album("hejira", "Hejira", "Joni Mitchell")),
+                artists = listOf(Artist("joni", "Joni Mitchell", null)),
+            ),
+            limit = 2,
+        )
+        assertEquals(listOf("Joni Mitchell", "Blue"), suggestions.map { it.label })
+    }
+
+    @Test
+    fun `native deep links resolve stack search and artist destinations`() {
+        assertEquals(NativeDestination.Stack, parseNativeDestination("albumdj://stack"))
+        assertEquals(NativeDestination.Search("joni mitchell"), parseNativeDestination("albumdj://search?q=joni%20mitchell"))
+        assertEquals(NativeDestination.Artist("abc123", "Joni Mitchell"), parseNativeDestination("https://albumdj.vercel.app/mobile/artist/abc123?name=Joni%20Mitchell"))
+    }
+
+    @Test
+    fun `album NFC cards use a stable payload shared with the web app`() {
+        assertEquals("physical-favourite:abc123", albumCardPayload("abc123"))
+        assertEquals("abc123", albumIdFromCardPayload("physical-favourite:abc123"))
+        assertEquals(null, albumIdFromCardPayload("not-an-album"))
+    }
+
+    @Test
+    fun `android auto playable media ids resolve to Spotify album ids`() {
+        assertEquals("abc123", albumIdFromMediaId("album:abc123"))
+        assertEquals(null, albumIdFromMediaId(AlbumDjLibrary.STACK_ID))
+    }
+
+    @Test
     fun `discover ideas use the full saved Spotify album library`() {
         val discoverLibrary = AlbumDjLibrary(
             stack = emptyList(),
@@ -227,6 +281,20 @@ class PhoneNavigationTest {
         val added = optimisticArtistFavourite(original, artist, favourite = true)
         assertEquals(listOf("joni"), added.favouriteArtists.map { it.id })
         assertEquals(emptyList<String>(), optimisticArtistFavourite(added, artist, favourite = false).favouriteArtists.map { it.id })
+    }
+
+    @Test
+    fun `album collection actions update favourite and stack state optimistically`() {
+        val album = Album("blue", "Blue", "Joni Mitchell")
+        val original = account(connected = true, playlistAccess = true)
+        val favourited = optimisticAlbumFavourite(original, album, true)
+        assertEquals(listOf("blue"), favourited.library.favourites.map { it.id })
+        assertEquals(emptyList<String>(), optimisticAlbumFavourite(favourited, album, false).library.favourites.map { it.id })
+
+        val stacked = optimisticStackAlbum(original, album, true)
+        assertEquals(listOf("blue"), stacked.rotation.albumIds)
+        assertEquals(listOf("blue"), stacked.library.stack.map { it.id })
+        assertEquals(emptyList<String>(), optimisticStackAlbum(stacked, album, false).library.stack.map { it.id })
     }
 
     @Test

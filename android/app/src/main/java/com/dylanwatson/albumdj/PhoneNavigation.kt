@@ -4,10 +4,13 @@ import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumPlayback
 import com.dylanwatson.albumdj.data.Artist
 import com.dylanwatson.albumdj.data.RotationHistoryEntry
+import com.dylanwatson.albumdj.data.SearchResults
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
 import java.net.URLEncoder
+import java.net.URI
+import java.net.URLDecoder
 
 enum class PhoneSection(val label: String, val glyph: String) {
     STACK("Stack", "▱"),
@@ -108,6 +111,20 @@ enum class AlbumOrder {
     TITLE_ASC,
     TITLE_DESC,
     ARTIST_ASC,
+    RELEASE_DESC,
+    RELEASE_ASC,
+}
+
+sealed interface NativeDestination {
+    data object Stack : NativeDestination
+    data class Search(val query: String) : NativeDestination
+    data class Artist(val id: String, val name: String?) : NativeDestination
+}
+
+sealed interface SearchSuggestion {
+    val label: String
+    data class ArtistSuggestion(val artist: Artist) : SearchSuggestion { override val label = artist.name }
+    data class AlbumSuggestion(val album: Album) : SearchSuggestion { override val label = album.title }
 }
 
 data class CollectionView(
@@ -148,12 +165,57 @@ fun collectionView(
                     AlbumOrder.ARTIST_ASC ->
                         compareBy<Album, String>(String.CASE_INSENSITIVE_ORDER) { it.artist }
                             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title }
+                    AlbumOrder.RELEASE_DESC -> compareByDescending<Album> { it.releaseDate != null }
+                        .thenByDescending { it.releaseDate.orEmpty() }
+                    AlbumOrder.RELEASE_ASC -> compareByDescending<Album> { it.releaseDate != null }
+                        .thenBy { it.releaseDate.orEmpty() }
                 },
             )
             .let { if (albumOrder == AlbumOrder.TITLE_DESC) it.reversed() else it }
     }
     return CollectionView(visibleArtists, visibleAlbums)
 }
+
+fun shouldRequestSearchSuggestions(query: String): Boolean = query.trim().length >= 2
+
+fun searchSuggestions(results: SearchResults, limit: Int = 6): List<SearchSuggestion> = buildList {
+    results.artists.forEach { add(SearchSuggestion.ArtistSuggestion(it)) }
+    results.albums.forEach { add(SearchSuggestion.AlbumSuggestion(it)) }
+}.take(limit)
+
+fun parseNativeDestination(raw: String?): NativeDestination? {
+    val uri = runCatching { URI(raw ?: return null) }.getOrNull() ?: return null
+    val parts = uri.path.orEmpty().trim('/').split('/').filter(String::isNotBlank)
+    val route = when {
+        uri.scheme == "albumdj" -> listOfNotNull(uri.host) + parts
+        uri.scheme == "https" && uri.host == "albumdj.vercel.app" && parts.firstOrNull() == "mobile" -> parts.drop(1)
+        else -> return null
+    }
+    val query = uri.rawQuery.orEmpty().split('&').mapNotNull { item ->
+        val pair = item.split('=', limit = 2)
+        pair.firstOrNull()?.let { key -> key to URLDecoder.decode(pair.getOrElse(1) { "" }, "UTF-8") }
+    }.toMap()
+    return when (route.firstOrNull()) {
+        "stack" -> NativeDestination.Stack
+        "search" -> query["q"]?.takeIf(String::isNotBlank)?.let(NativeDestination::Search)
+        "artist" -> route.getOrNull(1)?.takeIf(String::isNotBlank)?.let { NativeDestination.Artist(it, query["name"]) }
+        else -> null
+    }
+}
+
+fun albumCardPayload(albumId: String): String = "physical-favourite:${URLEncoder.encode(albumId, "UTF-8").replace("+", "%20")}"
+
+fun albumIdFromCardPayload(payload: String): String? = payload
+    .trim()
+    .takeIf { it.startsWith("physical-favourite:") }
+    ?.removePrefix("physical-favourite:")
+    ?.let { URLDecoder.decode(it, "UTF-8") }
+    ?.takeIf(String::isNotBlank)
+
+fun albumIdFromMediaId(mediaId: String): String? = mediaId
+    .takeIf { it.startsWith("album:") }
+    ?.removePrefix("album:")
+    ?.takeIf(String::isNotBlank)
 
 fun discoverAlbumIdeas(library: AlbumDjLibrary, query: String): List<Album> {
     val search = query.trim()
@@ -186,6 +248,30 @@ fun optimisticArtistFavourite(
         account.favouriteArtists.filterNot { it.id == artist.id }
     },
 )
+
+fun optimisticAlbumFavourite(account: AlbumDjAccount, album: Album, favourite: Boolean): AlbumDjAccount = account.copy(
+    library = account.library.copyWith(
+        favourites = if (favourite) {
+            (account.library.favourites + album).distinctBy { it.id }
+        } else {
+            account.library.favourites.filterNot { it.id == album.id }
+        },
+    ),
+)
+
+fun optimisticStackAlbum(account: AlbumDjAccount, album: Album, add: Boolean): AlbumDjAccount = account.copy(
+    rotation = account.rotation.copy(
+        albumIds = if (add) (account.rotation.albumIds + album.id).distinct() else account.rotation.albumIds.filterNot { it == album.id },
+    ),
+    library = account.library.copyWith(
+        stack = if (add) (account.library.stack + album).distinctBy { it.id } else account.library.stack.filterNot { it.id == album.id },
+    ),
+)
+
+private fun AlbumDjLibrary.copyWith(
+    stack: List<Album> = this.stack,
+    favourites: List<Album> = this.favourites,
+) = AlbumDjLibrary(stack = stack, favourites = favourites, recent = recent, saved = saved)
 
 fun shouldClearSearchWhenOpeningArtist(section: PhoneSection): Boolean = section == PhoneSection.DISCOVER
 

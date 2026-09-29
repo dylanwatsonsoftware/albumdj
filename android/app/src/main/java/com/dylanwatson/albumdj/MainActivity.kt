@@ -88,19 +88,25 @@ private const val MOBILE_REAUTHORIZE_URL = "https://albumdj.vercel.app/api/auth/
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: AlbumDjRepository
+    private lateinit var nfcCards: NfcAlbumCards
     private var sessionToken by mutableStateOf<String?>(null)
     private var authRevision by mutableIntStateOf(0)
+    private var destination by mutableStateOf<NativeDestination?>(null)
+    private var destinationRevision by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         repository = AlbumDjRepository(applicationContext)
+        nfcCards = NfcAlbumCards(this)
         sessionToken = repository.savedToken()
-        acceptAuthIntent(intent)
+        acceptIntent(intent)
         setContent {
             AlbumDjApp(
                 repository = repository,
                 sessionToken = sessionToken,
                 authRevision = authRevision,
+                destination = destination,
+                destinationRevision = destinationRevision,
                 connect = { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MOBILE_CONNECT_URL))) },
                 reauthorize = { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(MOBILE_REAUTHORIZE_URL))) },
                 openSpotify = { url ->
@@ -108,6 +114,9 @@ class MainActivity : ComponentActivity() {
                     runCatching { startActivity(spotifyIntent) }
                         .onFailure { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                 },
+                nfcAvailable = nfcCards.available,
+                scanCard = { onAlbum, onError -> nfcCards.scan(onAlbum, onError) },
+                pairCard = { albumId, onComplete, onError -> nfcCards.pair(albumId, onComplete, onError) },
             )
         }
     }
@@ -115,20 +124,30 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        acceptAuthIntent(intent)
+        acceptIntent(intent)
     }
 
-    private fun acceptAuthIntent(intent: Intent?) {
+    override fun onDestroy() {
+        nfcCards.stop()
+        super.onDestroy()
+    }
+
+    private fun acceptIntent(intent: Intent?) {
         val data = intent?.data
-            ?.takeIf { it.scheme == "https" && it.host == "albumdj.vercel.app" && it.path == "/mobile/callback" }
-            ?: return
-        val token = Uri.parse("https://callback.invalid/?${data.fragment.orEmpty()}")
-            .getQueryParameter("token")
-            ?.takeIf(String::isNotBlank)
-            ?: return
-        repository.acceptToken(token)
-        sessionToken = token
-        authRevision += 1
+        if (data?.scheme == "https" && data.host == "albumdj.vercel.app" && data.path == "/mobile/callback") {
+            val token = Uri.parse("https://callback.invalid/?${data.fragment.orEmpty()}")
+                .getQueryParameter("token")
+                ?.takeIf(String::isNotBlank)
+                ?: return
+            repository.acceptToken(token)
+            sessionToken = token
+            authRevision += 1
+        } else {
+            parseNativeDestination(data?.toString())?.let {
+                destination = it
+                destinationRevision += 1
+            }
+        }
     }
 }
 
@@ -146,9 +165,14 @@ private fun AlbumDjApp(
     repository: AlbumDjRepository,
     sessionToken: String?,
     authRevision: Int,
+    destination: NativeDestination?,
+    destinationRevision: Int,
     connect: () -> Unit,
     reauthorize: () -> Unit,
     openSpotify: (String) -> Unit,
+    nfcAvailable: Boolean,
+    scanCard: (((String) -> Unit), ((String) -> Unit)) -> Unit,
+    pairCard: (String, () -> Unit, (String) -> Unit) -> Unit,
 ) {
     var account by remember { mutableStateOf(repository.cachedAccount()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -158,6 +182,7 @@ private fun AlbumDjApp(
     var manualRefreshRequested by remember { mutableStateOf(false) }
     var carPreview by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<SearchResults?>(null) }
+    var suggestionResults by remember { mutableStateOf<SearchResults?>(null) }
     var searchLoading by remember { mutableStateOf(false) }
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var artistAlbums by remember { mutableStateOf<List<Album>>(emptyList()) }
@@ -251,12 +276,16 @@ private fun AlbumDjApp(
     val ejectAlbum: (String) -> Unit = { albumId ->
         error = null
         notice = null
-        loading = true
+        val album = account?.library?.stack?.firstOrNull { it.id == albumId }
+        val before = account
+        if (album != null && before != null) account = optimisticStackAlbum(before, album, false)
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.ejectAlbum(albumId) } }
                 .onSuccess { account = it }
-                .onFailure { error = it.message }
-            loading = false
+                .onFailure {
+                    if (album != null) account = account?.let { latest -> optimisticStackAlbum(latest, album, true) } ?: before
+                    error = it.message
+                }
         }
     }
     val search: (String) -> Unit = { query ->
@@ -268,6 +297,16 @@ private fun AlbumDjApp(
                 .onSuccess { searchResults = it }
                 .onFailure { error = it.message }
             searchLoading = false
+        }
+    }
+    val suggestSearch: (String) -> Unit = { query ->
+        if (!shouldRequestSearchSuggestions(query)) {
+            suggestionResults = null
+        } else {
+            scope.launch {
+                runCatching { withContext(Dispatchers.IO) { repository.search(query) } }
+                    .onSuccess { suggestionResults = it }
+            }
         }
     }
     val openArtist: (Artist) -> Unit = { artist ->
@@ -286,29 +325,35 @@ private fun AlbumDjApp(
     val addAlbumToStack: (Album) -> Unit = { album ->
         error = null
         notice = null
-        loading = true
+        val before = account
+        if (before != null) account = optimisticStackAlbum(before, album, true)
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.addAlbumToStack(album) } }
                 .onSuccess {
                     account = it
                     notice = "${album.title} was added to your stack."
                 }
-                .onFailure { error = it.message }
-            loading = false
+                .onFailure {
+                    account = account?.let { latest -> optimisticStackAlbum(latest, album, false) } ?: before
+                    error = it.message
+                }
         }
     }
     val setAlbumFavourite: (Album, Boolean) -> Unit = { album, favourite ->
         error = null
         notice = null
-        loading = true
+        val before = account
+        if (before != null) account = optimisticAlbumFavourite(before, album, favourite)
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.setAlbumFavourite(album, favourite) } }
                 .onSuccess {
                     account = it
                     notice = if (favourite) "${album.title} was added to favourites." else "${album.title} was removed from favourites."
                 }
-                .onFailure { error = it.message }
-            loading = false
+                .onFailure {
+                    account = account?.let { latest -> optimisticAlbumFavourite(latest, album, !favourite) } ?: before
+                    error = it.message
+                }
         }
     }
     val setArtistFavourite: (Artist, Boolean) -> Unit = { artist, favourite ->
@@ -356,8 +401,10 @@ private fun AlbumDjApp(
                 preview = { carPreview = true },
                 playAlbum = playAlbum,
                 searchResults = searchResults,
+                suggestionResults = suggestionResults,
                 searchLoading = searchLoading,
                 search = search,
+                suggestSearch = suggestSearch,
                 clearSearch = { searchResults = null },
                 selectedArtist = selectedArtist,
                 artistAlbums = artistAlbums,
@@ -370,6 +417,24 @@ private fun AlbumDjApp(
                 setAlbumFavourite = setAlbumFavourite,
                 setArtistFavourite = setArtistFavourite,
                 openArtist = openArtist,
+                destination = destination,
+                destinationRevision = destinationRevision,
+                nfcAvailable = nfcAvailable,
+                scanCard = {
+                    notice = "Hold an Album DJ card near your phone…"
+                    scanCard(
+                        { albumId -> notice = "Card scanned. Opening Spotify…"; playAlbum(albumId) },
+                        { error = it; notice = null },
+                    )
+                },
+                pairCard = { album ->
+                    notice = "Hold an NFC card near your phone to pair ${album.title}…"
+                    pairCard(
+                        album.id,
+                        { notice = "${album.title} is paired with this NFC card." },
+                        { error = it; notice = null },
+                    )
+                },
             )
         }
     }
@@ -388,8 +453,10 @@ private fun AlbumDjPhone(
     preview: () -> Unit,
     playAlbum: (String) -> Unit,
     searchResults: SearchResults?,
+    suggestionResults: SearchResults?,
     searchLoading: Boolean,
     search: (String) -> Unit,
+    suggestSearch: (String) -> Unit,
     clearSearch: () -> Unit,
     selectedArtist: Artist?,
     artistAlbums: List<Album>,
@@ -402,9 +469,34 @@ private fun AlbumDjPhone(
     setAlbumFavourite: (Album, Boolean) -> Unit,
     setArtistFavourite: (Artist, Boolean) -> Unit,
     openArtist: (Artist) -> Unit,
+    destination: NativeDestination?,
+    destinationRevision: Int,
+    nfcAvailable: Boolean,
+    scanCard: () -> Unit,
+    pairCard: (Album) -> Unit,
 ) {
     var section by remember { mutableStateOf(DEFAULT_PHONE_SECTION) }
+    var deepLinkSearchQuery by remember { mutableStateOf<String?>(null) }
     val library = account?.library ?: AlbumDjLibrary.demo()
+    LaunchedEffect(destinationRevision) {
+        when (val target = destination) {
+            NativeDestination.Stack -> {
+                closeArtist()
+                deepLinkSearchQuery = null
+                section = PhoneSection.STACK
+            }
+            is NativeDestination.Search -> {
+                closeArtist()
+                section = PhoneSection.DISCOVER
+                deepLinkSearchQuery = target.query
+            }
+            is NativeDestination.Artist -> {
+                section = PhoneSection.DISCOVER
+                openArtist(Artist(target.id, target.name ?: "Artist", null))
+            }
+            null -> Unit
+        }
+    }
     BackHandler(enabled = selectedArtist != null, onBack = closeArtist)
     Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -433,20 +525,27 @@ private fun AlbumDjPhone(
                             library,
                             connected,
                             searchResults,
+                            suggestionResults,
                             searchLoading,
                             search,
+                            suggestSearch,
                             clearSearch,
                             { section = PhoneSection.COLLECTION },
                             { section = PhoneSection.STACK },
                             playAlbum,
                             addAlbumToStack,
                             setAlbumFavourite,
+                            deepLinkSearchQuery,
+                            { deepLinkSearchQuery = null },
                             { artist ->
                                 if (shouldClearSearchWhenOpeningArtist(section)) clearSearch()
                                 openArtist(artist)
                             },
                         )
-                        PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum, openArtist)
+                        PhoneSection.COLLECTION -> CollectionScreen(
+                            account?.favouriteArtists.orEmpty(), library, playAlbum, addAlbumToStack,
+                            setAlbumFavourite, openArtist, pairCard,
+                        )
                         PhoneSection.STACK -> StackScreen(
                             library,
                             account?.rotation?.history.orEmpty(),
@@ -458,7 +557,7 @@ private fun AlbumDjPhone(
                             setAlbumFavourite,
                             openArtist,
                         )
-                        PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, reauthorize, refresh, preview)
+                        PhoneSection.SETTINGS -> SettingsScreen(account, connected, nfcAvailable, connect, reauthorize, refresh, preview, scanCard)
                     }
                 }
             }
@@ -536,20 +635,30 @@ private fun DiscoverScreen(
     library: AlbumDjLibrary,
     connected: Boolean,
     searchResults: SearchResults?,
+    suggestionResults: SearchResults?,
     searchLoading: Boolean,
     search: (String) -> Unit,
+    suggestSearch: (String) -> Unit,
     clearSearch: () -> Unit,
     openCollection: () -> Unit,
     openStack: () -> Unit,
     playAlbum: (String) -> Unit,
     addAlbumToStack: (Album) -> Unit,
     setAlbumFavourite: (Album, Boolean) -> Unit,
+    initialQuery: String?,
+    consumeInitialQuery: () -> Unit,
     openArtist: (Artist) -> Unit,
 ) {
     val recent = library.recent
     val stack = library.stack
     var query by remember { mutableStateOf("") }
     var browseQuery by remember { mutableStateOf("") }
+    LaunchedEffect(initialQuery) {
+        val linkedQuery = initialQuery?.takeIf(String::isNotBlank) ?: return@LaunchedEffect
+        query = linkedQuery
+        search(linkedQuery)
+        consumeInitialQuery()
+    }
     val backAction = discoverBackAction(searchResults != null)
     val exitSearch = {
         query = ""
@@ -565,9 +674,21 @@ private fun DiscoverScreen(
                 query = query,
                 connected = connected,
                 loading = searchLoading,
+                suggestions = if (searchResults == null) suggestionResults?.let(::searchSuggestions).orEmpty() else emptyList(),
                 onQueryChange = {
                     query = it
+                    if (!shouldRequestSearchSuggestions(it)) suggestSearch(it)
                     if (searchResults != null) clearSearch()
+                },
+                suggest = suggestSearch,
+                selectSuggestion = { suggestion ->
+                    when (suggestion) {
+                        is SearchSuggestion.ArtistSuggestion -> openArtist(suggestion.artist)
+                        is SearchSuggestion.AlbumSuggestion -> {
+                            query = suggestion.album.title
+                            search("${suggestion.album.title} ${suggestion.album.artist}")
+                        }
+                    }
                 },
                 submit = submitSearch,
             )
@@ -657,9 +778,17 @@ private fun SpotifySearchCard(
     query: String,
     connected: Boolean,
     loading: Boolean,
+    suggestions: List<SearchSuggestion>,
     onQueryChange: (String) -> Unit,
+    suggest: (String) -> Unit,
+    selectSuggestion: (SearchSuggestion) -> Unit,
     submit: () -> Unit,
 ) {
+    LaunchedEffect(query) {
+        if (!shouldRequestSearchSuggestions(query)) return@LaunchedEffect
+        delay(300)
+        suggest(query.trim())
+    }
     Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Raised).padding(16.dp)) {
         Label("Search Spotify")
         Text("Find any artist or album, then save it or load it straight into your stack.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 8.dp))
@@ -674,6 +803,19 @@ private fun SpotifySearchCard(
             keyboardActions = KeyboardActions(onSearch = { submit() }),
             modifier = Modifier.fillMaxWidth(),
         )
+        suggestions.forEach { suggestion ->
+            val detail = when (suggestion) {
+                is SearchSuggestion.ArtistSuggestion -> "Artist"
+                is SearchSuggestion.AlbumSuggestion -> suggestion.album.artist
+            }
+            Row(
+                Modifier.fillMaxWidth().clickable { selectSuggestion(suggestion) }.padding(horizontal = 4.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(suggestion.label, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(detail, color = Muted, fontSize = 11.sp)
+            }
+        }
         Button(
             onClick = submit,
             enabled = connected && query.isNotBlank() && !loading,
@@ -785,7 +927,10 @@ private fun CollectionScreen(
     artists: List<Artist>,
     library: AlbumDjLibrary,
     playAlbum: (String) -> Unit,
+    addAlbumToStack: (Album) -> Unit,
+    setAlbumFavourite: (Album, Boolean) -> Unit,
     openArtist: (Artist) -> Unit,
+    pairCard: (Album) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf(CollectionKind.ALL) }
@@ -838,21 +983,31 @@ private fun CollectionScreen(
                         AlbumOrder.TITLE_ASC -> "ALBUM A–Z"
                         AlbumOrder.TITLE_DESC -> "ALBUM Z–A"
                         AlbumOrder.ARTIST_ASC -> "ARTIST A–Z"
+                        AlbumOrder.RELEASE_DESC -> "NEWEST"
+                        AlbumOrder.RELEASE_ASC -> "OLDEST"
                     },
                     onAction = {
                         albumOrder = when (albumOrder) {
                             AlbumOrder.TITLE_ASC -> AlbumOrder.TITLE_DESC
                             AlbumOrder.TITLE_DESC -> AlbumOrder.ARTIST_ASC
-                            AlbumOrder.ARTIST_ASC -> AlbumOrder.TITLE_ASC
+                            AlbumOrder.ARTIST_ASC -> AlbumOrder.RELEASE_DESC
+                            AlbumOrder.RELEASE_DESC -> AlbumOrder.RELEASE_ASC
+                            AlbumOrder.RELEASE_ASC -> AlbumOrder.TITLE_ASC
                         }
                     },
                 )
             }
-            items(view.albums.chunked(2)) { rowAlbums ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    rowAlbums.forEach { album -> Box(Modifier.weight(1f)) { GridAlbumCard(album.asLibraryNode(), playAlbum) } }
-                    if (rowAlbums.size == 1) Spacer(Modifier.weight(1f))
-                }
+            items(view.albums, key = { it.id }) { album ->
+                AlbumActionCard(
+                    album = album,
+                    favourite = true,
+                    inStack = library.stack.any { it.id == album.id },
+                    playAlbum = playAlbum,
+                    addAlbumToStack = addAlbumToStack,
+                    setAlbumFavourite = setAlbumFavourite,
+                    openArtist = openArtist,
+                    pairCard = pairCard,
+                )
             }
         }
     }
@@ -1010,6 +1165,7 @@ private fun AlbumActionCard(
     addAlbumToStack: (Album) -> Unit,
     setAlbumFavourite: (Album, Boolean) -> Unit,
     openArtist: (Artist) -> Unit,
+    pairCard: ((Album) -> Unit)? = null,
     showArtistAction: Boolean = true,
 ) {
     Column(
@@ -1040,6 +1196,9 @@ private fun AlbumActionCard(
             } else {
                 Spacer(Modifier.weight(1f))
             }
+        }
+        if (pairCard != null) {
+            StackAction("Pair NFC card", Modifier.fillMaxWidth().padding(top = 8.dp)) { pairCard(album) }
         }
     }
 }
@@ -1532,7 +1691,16 @@ private fun Album.asLibraryNode() = LibraryNode(
 )
 
 @Composable
-private fun SettingsScreen(account: AlbumDjAccount?, connected: Boolean, connect: () -> Unit, reauthorize: () -> Unit, refresh: () -> Unit, preview: () -> Unit) {
+private fun SettingsScreen(
+    account: AlbumDjAccount?,
+    connected: Boolean,
+    nfcAvailable: Boolean,
+    connect: () -> Unit,
+    reauthorize: () -> Unit,
+    refresh: () -> Unit,
+    preview: () -> Unit,
+    scanCard: () -> Unit,
+) {
     val needsPlaylistAccess = account?.connected == true && !account.playlistAccess
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Setup", "Settings", "Manage the same Spotify and Firebase-backed account used by Album DJ on the web.") }
@@ -1544,7 +1712,19 @@ private fun SettingsScreen(account: AlbumDjAccount?, connected: Boolean, connect
             }
         }
         item { SettingsCard("Android Auto", "Preview the same driver-safe collections exposed to your car.") { OutlinedButton(onClick = preview) { Text("Open car preview", color = Ink, fontWeight = FontWeight.Bold) } } }
-        item { SettingsCard("Physical album cards", "NFC pairing remains in the web app for now; this native app shares its Spotify account and saved library.") {} }
+        item {
+            SettingsCard(
+                "Physical album cards",
+                if (nfcAvailable) "Scan a paired album card here. Pair new cards from any favourite album in Collection."
+                else "This phone does not report an available NFC reader.",
+            ) {
+                Button(
+                    onClick = scanCard,
+                    enabled = nfcAvailable,
+                    colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+                ) { Text("Scan album card", fontWeight = FontWeight.Bold) }
+            }
+        }
     }
 }
 

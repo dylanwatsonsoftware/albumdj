@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -29,6 +31,20 @@
                     android:host="albumdj.vercel.app"
                     android:path="/mobile/callback"
                     android:scheme="https" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="albumdj" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="albumdj.vercel.app" android:pathPrefix="/mobile/stack" />
+                <data android:scheme="https" android:host="albumdj.vercel.app" android:pathPrefix="/mobile/search" />
+                <data android:scheme="https" android:host="albumdj.vercel.app" android:pathPrefix="/mobile/artist" />
             </intent-filter>
         </activity>
 
