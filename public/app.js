@@ -78,7 +78,6 @@ const rotationViewButton = document.querySelector("#album-view-rotation");
 const rotationPanelElement = document.querySelector(".rotation-panel");
 const rotationToggleButton = document.querySelector("#rotation-toggle");
 const rotationDuration = document.querySelector("#rotation-duration");
-const rotationMode = document.querySelector("#rotation-mode");
 const rotationPlayButton = document.querySelector("#rotation-play");
 const rotationSpotifyReconnect = document.querySelector("#rotation-spotify-reconnect");
 const rotationAlbumsElement = document.querySelector("#rotation-albums");
@@ -1171,7 +1170,6 @@ function setAlbumView(view) {
 
 function renderRotation() {
   rotationDuration.value = String(rotation.durationDays);
-  rotationMode.value = rotation.mode;
   rotationPlayButton.disabled = rotation.albumIds.length === 0;
   const needsPlaylistAccess = Boolean(spotifyStatus?.connected && spotifyStatus.playlistAccess === false);
   rotationSpotifyReconnect.hidden = !needsPlaylistAccess;
@@ -1277,7 +1275,7 @@ async function saveRotation(albumIds = rotation.albumIds, albums = []) {
       albumIds,
       albums,
       durationDays: Number(rotationDuration.value),
-      mode: rotationMode.value,
+      mode: "sequential",
     }),
   });
   if (albums.length) {
@@ -1552,7 +1550,6 @@ async function startApp() {
   rotationViewButton.addEventListener("click", () => setAlbumView("rotation"));
   gridViewButton.addEventListener("click", () => setAlbumView("grid"));
   rotationDuration.addEventListener("change", () => saveRotation());
-  rotationMode.addEventListener("change", () => saveRotation());
   rotationPlayButton.addEventListener("click", playRotation);
   coverflowElement.addEventListener("keydown", (event) => {
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {

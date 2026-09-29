@@ -557,6 +557,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .rotation-panel > div > p:last-child { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 .rotation-panel label { color: var(--muted); font-family: "DM Mono", monospace; font-size: 8px; text-transform: uppercase; letter-spacing: .1em; }
 .rotation-panel select { display: block; margin-top: 5px; min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-raised); padding: 0 28px 0 9px; color: var(--ink); font: 11px "Manrope", sans-serif; }
+.rotation-order-note { max-width: 260px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .rotation-play { min-height: 36px; border: 1px solid var(--acid); border-radius: 8px; padding: 0 13px; background: var(--acid); color: var(--accent-ink); font-family: "DM Mono", monospace; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
 .rotation-play:disabled { opacity: .4; cursor: not-allowed; }
 .rotation-spotify-reconnect { grid-column: 1 / -1; color: var(--acid); font: 9px "DM Mono", monospace; letter-spacing: .08em; text-transform: uppercase; text-underline-offset: 4px; }
@@ -941,6 +942,7 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
   .flow-arrow { top: 135px; width: 38px; height: 38px; }
   .rotation-panel { grid-template-columns: 1fr 1fr; gap: 12px; }
   .rotation-panel > div, .rotation-play { grid-column: 1 / -1; }
+  .rotation-order-note { grid-column: 1 / -1; max-width: none; }
   .rotation-panel select { width: 100%; }
   .search-bar { grid-template-columns: 1fr; }
   .search-bar > button { min-height: 44px; }

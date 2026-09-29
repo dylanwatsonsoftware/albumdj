@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildRotationQueue, createRotationShelf } from "../src/rotation-shelf.js";
+import { buildManagedPlaylistQueue, buildRotationQueue, createRotationShelf } from "../src/rotation-shelf.js";
 
 test("persists a temporary album rotation for one or two weeks", () => {
   let saved;
@@ -101,6 +101,23 @@ test("builds album-by-album playback in the selected order", () => {
   });
 
   assert.deepEqual(queue, ["b1", "b2", "a1", "a2"]);
+});
+
+test("keeps the managed Spotify playlist in album and track order", () => {
+  const queue = buildManagedPlaylistQueue({
+    albumIds: ["b", "a"],
+    tracksByAlbum: new Map([
+      ["a", ["a-disc-1-track-1", "a-disc-1-track-2"]],
+      ["b", ["b-disc-1-track-1", "b-disc-1-track-2"]],
+    ]),
+  });
+
+  assert.deepEqual(queue, [
+    "b-disc-1-track-1",
+    "b-disc-1-track-2",
+    "a-disc-1-track-1",
+    "a-disc-1-track-2",
+  ]);
 });
 
 test("shuffles every track while moving between albums whenever possible", () => {

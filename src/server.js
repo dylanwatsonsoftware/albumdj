@@ -8,7 +8,7 @@ import { albums, targets } from "./catalog.js";
 import { createPlayerState } from "./player-state.js";
 import { createSpotifyClient } from "./spotify-client.js";
 import { createJsonSessionStore } from "./session-store.js";
-import { buildRotationQueue, createRotationShelf } from "./rotation-shelf.js";
+import { buildManagedPlaylistQueue, createRotationShelf } from "./rotation-shelf.js";
 import { selectRecentFavouriteAlbums } from "./recent-releases.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -70,10 +70,9 @@ async function syncRotationPlaylist(spotify, currentRotation) {
   for (const albumId of currentRotation.albumIds) {
     tracksByAlbum.set(albumId, await spotify.getAlbumTracks(albumId));
   }
-  const trackUris = buildRotationQueue({
+  const trackUris = buildManagedPlaylistQueue({
     albumIds: currentRotation.albumIds,
     tracksByAlbum,
-    mode: currentRotation.mode,
   });
   const playlist = await spotify.syncStackPlaylist({ trackUris });
   return { playlist, trackUris };

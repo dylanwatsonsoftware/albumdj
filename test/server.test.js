@@ -43,7 +43,8 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /id="album-view-rotation"/);
     assert.match(html, /id="rotation-toggle"/);
     assert.match(html, /id="rotation-duration"/);
-    assert.match(html, /id="rotation-mode"/);
+    assert.doesNotMatch(html, /id="rotation-mode"/);
+    assert.match(html, /Use Spotify’s shuffle control/);
     assert.match(html, /id="rotation-albums"/);
     assert.match(html, /class="[^"]*stack-table[^"]*"/);
     assert.match(html, /id="rotation-table-body"/);
@@ -766,7 +767,7 @@ test("drops stale album ids and enriches migrated stack history before the clien
   }, { rotation });
 });
 
-test("writes every track from the rotation shelf to the stack playlist", async () => {
+test("writes every track to the stack playlist in album order even when the saved mode was shuffle", async () => {
   let syncedTracks;
   const spotify = {
     status: () => ({ configured: true, connected: true, playlistAccess: true, profile: { displayName: "Dylan" } }),
@@ -777,7 +778,7 @@ test("writes every track from the rotation shelf to the stack playlist", async (
     },
   };
   const rotation = {
-    snapshot: () => ({ albumIds: ["discovery", "currents"], durationDays: 7, mode: "sequential", expiresAt: 123 }),
+    snapshot: () => ({ albumIds: ["discovery", "currents"], durationDays: 7, mode: "shuffle", expiresAt: 123 }),
   };
 
   await withServer(async (baseUrl) => {
@@ -786,7 +787,7 @@ test("writes every track from the rotation shelf to the stack playlist", async (
     assert.deepEqual(await response.json(), {
       albumCount: 2,
       trackCount: 4,
-      mode: "sequential",
+      mode: "shuffle",
       playlist: { id: "stack-1", uri: "spotify:playlist:stack-1", openUrl: "https://open.spotify.com/playlist/stack-1" },
       openUrl: "https://open.spotify.com/playlist/stack-1",
     });

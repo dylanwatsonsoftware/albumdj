@@ -140,3 +140,7 @@ export function buildRotationQueue({ albumIds, tracksByAlbum, mode, random = Mat
   }
   return shuffled;
 }
+
+export function buildManagedPlaylistQueue({ albumIds, tracksByAlbum }) {
+  return albumIds.flatMap((albumId) => tracksByAlbum.get(albumId) ?? []);
+}
