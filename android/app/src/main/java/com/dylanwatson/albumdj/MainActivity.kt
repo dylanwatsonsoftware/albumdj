@@ -281,7 +281,7 @@ private fun AlbumDjApp(
         if (album != null && before != null) account = optimisticStackAlbum(before, album, false)
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.ejectAlbum(albumId) } }
-                .onSuccess { account = it }
+                .onSuccess { persisted -> account = account?.let { mergeStackResult(it, persisted) } ?: persisted }
                 .onFailure {
                     if (album != null) account = account?.let { latest -> optimisticStackAlbum(latest, album, true) } ?: before
                     error = it.message
@@ -330,7 +330,7 @@ private fun AlbumDjApp(
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.addAlbumToStack(album) } }
                 .onSuccess {
-                    account = it
+                    account = account?.let { current -> mergeStackResult(current, it) } ?: it
                     notice = "${album.title} was added to your stack."
                 }
                 .onFailure {
@@ -347,7 +347,7 @@ private fun AlbumDjApp(
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { repository.setAlbumFavourite(album, favourite) } }
                 .onSuccess {
-                    account = it
+                    account = account?.let { current -> mergeAlbumFavouriteResult(current, it) } ?: it
                     notice = if (favourite) "${album.title} was added to favourites." else "${album.title} was removed from favourites."
                 }
                 .onFailure {

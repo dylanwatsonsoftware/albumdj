@@ -21,6 +21,18 @@ data class AlbumDjPayload(
         get() = AlbumDjAccountJson.decode(statusJson, rotationJson, favouritesJson, artistsJson, recentJson, savedJson)
 }
 
+enum class CachedAccountField {
+    ROTATION,
+    FAVOURITE_ALBUMS,
+    FAVOURITE_ARTISTS,
+}
+
+fun AlbumDjPayload.withField(field: CachedAccountField, json: String): AlbumDjPayload = when (field) {
+    CachedAccountField.ROTATION -> copy(rotationJson = json)
+    CachedAccountField.FAVOURITE_ALBUMS -> copy(favouritesJson = json)
+    CachedAccountField.FAVOURITE_ARTISTS -> copy(artistsJson = json)
+}
+
 data class AlbumPlayback(val openUrl: String?)
 data class StackPlayback(val openUrl: String?)
 

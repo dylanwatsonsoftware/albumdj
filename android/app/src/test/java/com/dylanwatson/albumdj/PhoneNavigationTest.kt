@@ -1,11 +1,14 @@
 package com.dylanwatson.albumdj
 
 import com.dylanwatson.albumdj.data.AlbumDjAccount
+import com.dylanwatson.albumdj.data.AlbumDjPayload
+import com.dylanwatson.albumdj.data.CachedAccountField
 import com.dylanwatson.albumdj.data.AlbumPlayback
 import com.dylanwatson.albumdj.data.Artist
 import com.dylanwatson.albumdj.data.Rotation
 import com.dylanwatson.albumdj.data.RotationHistoryEntry
 import com.dylanwatson.albumdj.data.SearchResults
+import com.dylanwatson.albumdj.data.withField
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import org.junit.Assert.assertEquals
@@ -303,6 +306,45 @@ class PhoneNavigationTest {
         assertEquals(listOf("blue"), stacked.rotation.albumIds)
         assertEquals(listOf("blue"), stacked.library.stack.map { it.id })
         assertEquals(emptyList<String>(), optimisticStackAlbum(stacked, album, false).library.stack.map { it.id })
+    }
+
+    @Test
+    fun `late favourite save cannot restore an album already ejected from the stack`() {
+        val album = Album("blue", "Blue", "Joni Mitchell")
+        val currentAfterEject = optimisticAlbumFavourite(account(true, true), album, true)
+        val staleFavouriteResponse = optimisticAlbumFavourite(
+            optimisticStackAlbum(account(true, true), album, true),
+            album,
+            true,
+        )
+
+        val merged = mergeAlbumFavouriteResult(currentAfterEject, staleFavouriteResponse)
+
+        assertEquals(emptyList<String>(), merged.library.stack.map { it.id })
+        assertEquals(emptyList<String>(), merged.rotation.albumIds)
+        assertEquals(listOf("blue"), merged.library.favourites.map { it.id })
+    }
+
+    @Test
+    fun `late eject save cannot remove a favourite selected while ejecting`() {
+        val album = Album("blue", "Blue", "Joni Mitchell")
+        val currentAfterFavourite = optimisticAlbumFavourite(account(true, true), album, true)
+        val staleEjectResponse = account(true, true)
+
+        val merged = mergeStackResult(currentAfterFavourite, staleEjectResponse)
+
+        assertEquals(listOf("blue"), merged.library.favourites.map { it.id })
+        assertEquals(emptyList<String>(), merged.library.stack.map { it.id })
+    }
+
+    @Test
+    fun `cache field update preserves newer rotation data`() {
+        val latest = AlbumDjPayload("status", "saved", "new-rotation", "old-favourites", "artists", "recent")
+
+        val updated = latest.withField(CachedAccountField.FAVOURITE_ALBUMS, "new-favourites")
+
+        assertEquals("new-rotation", updated.rotationJson)
+        assertEquals("new-favourites", updated.favouritesJson)
     }
 
     @Test

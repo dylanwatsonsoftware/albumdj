@@ -65,6 +65,18 @@ class AlbumDjCache(context: Context) {
     private val preferences = context.getSharedPreferences("album-dj-library", Context.MODE_PRIVATE)
 
     fun save(payload: AlbumDjPayload) {
+        synchronized(cacheWriteLock) { saveUnlocked(payload) }
+    }
+
+    fun load(): AlbumDjPayload? = synchronized(cacheWriteLock) { loadUnlocked() }
+
+    fun updateField(field: CachedAccountField, json: String): AlbumDjPayload = synchronized(cacheWriteLock) {
+        val updated = (loadUnlocked() ?: error("Refresh your Album DJ library first")).withField(field, json)
+        saveUnlocked(updated)
+        updated
+    }
+
+    private fun saveUnlocked(payload: AlbumDjPayload) {
         preferences.edit()
             .putString("status", payload.statusJson)
             .putString("saved", payload.savedJson)
@@ -72,10 +84,10 @@ class AlbumDjCache(context: Context) {
             .putString("favourites", payload.favouritesJson)
             .putString("artists", payload.artistsJson)
             .putString("recent", payload.recentJson)
-            .apply()
+            .commit()
     }
 
-    fun load(): AlbumDjPayload? {
+    private fun loadUnlocked(): AlbumDjPayload? {
         val status = preferences.getString("status", null) ?: return null
         return AlbumDjPayload(
             statusJson = status,
@@ -85,6 +97,10 @@ class AlbumDjCache(context: Context) {
             artistsJson = preferences.getString("artists", "[]") ?: "[]",
             recentJson = preferences.getString("recent", "[]") ?: "[]",
         )
+    }
+
+    private companion object {
+        val cacheWriteLock = Any()
     }
 }
 
@@ -122,7 +138,7 @@ class AlbumDjRepository(context: Context) {
             mode = account.rotation.mode,
             albums = listOf(album),
         )
-        return payload.copy(rotationJson = rotationJson).also(cache::save).account
+        return cache.updateField(CachedAccountField.ROTATION, rotationJson).account
     }
 
     fun ejectAlbum(albumId: String): AlbumDjAccount {
@@ -133,7 +149,7 @@ class AlbumDjRepository(context: Context) {
             durationDays = account.rotation.durationDays,
             mode = account.rotation.mode,
         )
-        return payload.copy(rotationJson = rotationJson).also(cache::save).account
+        return cache.updateField(CachedAccountField.ROTATION, rotationJson).account
     }
 
     fun setAlbumFavourite(album: Album, favourite: Boolean): AlbumDjAccount {
@@ -150,7 +166,7 @@ class AlbumDjRepository(context: Context) {
             current.filterNot { it.id == artist.id }
         }
         val artistsJson = api().saveFavouriteArtists(artists)
-        return payload.copy(artistsJson = artistsJson).also(cache::save).account
+        return cache.updateField(CachedAccountField.FAVOURITE_ARTISTS, artistsJson).account
     }
 
     private fun setAlbumFavourite(
@@ -165,7 +181,7 @@ class AlbumDjRepository(context: Context) {
             account.library.favourites.filterNot { it.id == album.id }
         }
         val favouritesJson = api().saveFavouriteAlbums(albums)
-        return payload.copy(favouritesJson = favouritesJson).also(cache::save).account
+        return cache.updateField(CachedAccountField.FAVOURITE_ALBUMS, favouritesJson).account
     }
 
     private fun api(): AlbumDjApi {

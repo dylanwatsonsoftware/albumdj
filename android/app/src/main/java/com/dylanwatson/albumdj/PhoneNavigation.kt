@@ -271,6 +271,15 @@ fun optimisticStackAlbum(account: AlbumDjAccount, album: Album, add: Boolean): A
     ),
 )
 
+fun mergeAlbumFavouriteResult(current: AlbumDjAccount, persisted: AlbumDjAccount): AlbumDjAccount = current.copy(
+    library = current.library.copyWith(favourites = persisted.library.favourites),
+)
+
+fun mergeStackResult(current: AlbumDjAccount, persisted: AlbumDjAccount): AlbumDjAccount = current.copy(
+    rotation = persisted.rotation,
+    library = current.library.copyWith(stack = persisted.library.stack),
+)
+
 private fun AlbumDjLibrary.copyWith(
     stack: List<Album> = this.stack,
     favourites: List<Album> = this.favourites,
