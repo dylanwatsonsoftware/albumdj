@@ -2,26 +2,63 @@ export function createPlaybackMonitor({
   request,
   onPlayback,
   onError = () => {},
-  setIntervalImpl = setInterval,
-  clearIntervalImpl = clearInterval,
+  setTimeoutImpl = setTimeout,
+  clearTimeoutImpl = clearTimeout,
+  initialVisible = true,
 }) {
-  let refreshing = false;
+  let refreshPromise = null;
+  let timer = null;
+  let visible = initialVisible;
+  let stopped = false;
 
-  async function refresh() {
-    if (refreshing) return;
-    refreshing = true;
-    try {
-      onPlayback(await request("/api/spotify/playback"));
-    } catch (error) {
-      onError(error);
-    } finally {
-      refreshing = false;
-    }
+  function clearScheduledRefresh() {
+    if (timer === null) return;
+    clearTimeoutImpl(timer);
+    timer = null;
   }
 
-  const timer = setIntervalImpl(refresh, 5_000);
+  function scheduleRefresh(playback) {
+    clearScheduledRefresh();
+    if (stopped || !visible) return;
+    const delay = playback?.isPlaying ? 30_000 : 120_000;
+    timer = setTimeoutImpl(async () => {
+      timer = null;
+      await refresh();
+    }, delay);
+  }
+
+  function refresh() {
+    if (stopped || !visible) return Promise.resolve();
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+      try {
+        const playback = await request("/api/spotify/playback");
+        onPlayback(playback);
+        scheduleRefresh(playback);
+      } catch (error) {
+        onError(error);
+        scheduleRefresh(null);
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+    return refreshPromise;
+  }
+
   return {
     refresh,
-    stop() { clearIntervalImpl(timer); },
+    setVisible(nextVisible) {
+      if (visible === nextVisible) return Promise.resolve();
+      visible = nextVisible;
+      if (!visible) {
+        clearScheduledRefresh();
+        return Promise.resolve();
+      }
+      return refresh();
+    },
+    stop() {
+      stopped = true;
+      clearScheduledRefresh();
+    },
   };
 }

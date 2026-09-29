@@ -1613,6 +1613,7 @@ async function startApp() {
     playbackMonitor = createPlaybackMonitor({
       request,
       onPlayback: showLivePlayback,
+      initialVisible: document.visibilityState === "visible",
     });
     void playbackMonitor.refresh().catch((error) => {
       document.querySelector("#playback-mode").textContent = error.message;
@@ -1649,10 +1650,11 @@ async function startApp() {
       });
 
     document.addEventListener("visibilitychange", async () => {
-      if (document.visibilityState !== "visible") return;
+      const visible = document.visibilityState === "visible";
+      await playbackMonitor.setVisible(visible);
+      if (!visible) return;
       try {
         await refreshDevices();
-        await playbackMonitor.refresh();
       } catch (error) {
         document.querySelector("#destination-status").textContent = error.message;
       }

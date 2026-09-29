@@ -3,37 +3,43 @@ import assert from "node:assert/strict";
 
 import { createPlaybackMonitor } from "../public/live-playback.js";
 
-test("loads current playback immediately and on each polling interval", async () => {
-  let intervalCallback;
+test("polls slowly and backs off further when Spotify is idle", async () => {
+  const scheduled = [];
   let requestCount = 0;
   const states = [];
   const monitor = createPlaybackMonitor({
     request: async () => ({ isPlaying: requestCount++ === 0 }),
     onPlayback: (playback) => states.push(playback),
-    setIntervalImpl: (callback, milliseconds) => {
-      intervalCallback = callback;
-      assert.equal(milliseconds, 5_000);
-      return 7;
+    setTimeoutImpl: (callback, milliseconds) => {
+      scheduled.push({ callback, milliseconds });
+      return scheduled.length;
     },
-    clearIntervalImpl: () => {},
+    clearTimeoutImpl: () => {},
   });
 
   await monitor.refresh();
-  await intervalCallback();
+  await scheduled.shift().callback();
 
   assert.deepEqual(states, [{ isPlaying: true }, { isPlaying: false }]);
+  assert.deepEqual(scheduled.map(({ milliseconds }) => milliseconds), [120_000]);
 });
 
-test("stops the current-playback polling interval", () => {
-  let cleared;
+test("pauses polling while hidden and refreshes once when visible again", async () => {
+  let timerId = 0;
+  const cleared = [];
+  let requests = 0;
   const monitor = createPlaybackMonitor({
-    request: async () => null,
+    request: async () => { requests += 1; return null; },
     onPlayback: () => {},
-    setIntervalImpl: () => 12,
-    clearIntervalImpl: (timer) => { cleared = timer; },
+    setTimeoutImpl: () => ++timerId,
+    clearTimeoutImpl: (timer) => { cleared.push(timer); },
   });
 
+  await monitor.refresh();
+  monitor.setVisible(false);
+  await monitor.setVisible(true);
   monitor.stop();
 
-  assert.equal(cleared, 12);
+  assert.equal(requests, 2);
+  assert.deepEqual(cleared, [1, 2]);
 });

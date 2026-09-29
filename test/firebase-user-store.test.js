@@ -5,13 +5,16 @@ import { createFirebaseUserStore } from "../src/firebase-user-store.js";
 
 function fakeFirestore(initial = {}) {
   const writes = [];
+  const reads = [];
   return {
+    reads,
     writes,
     collection(name) {
       return {
         doc(sessionId) {
           return {
             async get() {
+              reads.push({ collection: name, sessionId });
               const records = initial[name] ?? (name === "albumdj_sessions" ? initial : {});
               return {
                 exists: Object.hasOwn(records, sessionId),
@@ -29,6 +32,57 @@ function fakeFirestore(initial = {}) {
     },
   };
 }
+
+test("deduplicates concurrent reads and caches one hydrated account briefly", async () => {
+  let now = 1_000;
+  const firestore = fakeFirestore({
+    albumdj_sessions: {
+      "browser-a": {
+        spotifySession: { profile: { id: "spotify-user" } },
+        preferencesMigratedTo: "spotify-user",
+      },
+    },
+    albumdj_users: {
+      "spotify-user": { favouriteAlbums: [{ id: "blue", title: "Blue" }] },
+    },
+  });
+  const store = createFirebaseUserStore({ firestore, now: () => now, cacheTtlMs: 60_000 });
+
+  const [first, second] = await Promise.all([store.load("browser-a"), store.load("browser-a")]);
+  first.favouriteAlbums.length = 0;
+  const cached = await store.load("browser-a");
+
+  assert.equal(firestore.reads.length, 2);
+  assert.deepEqual(second.favouriteAlbums, [{ id: "blue", title: "Blue" }]);
+  assert.deepEqual(cached.favouriteAlbums, [{ id: "blue", title: "Blue" }]);
+
+  now += 60_001;
+  await store.load("browser-a");
+  assert.equal(firestore.reads.length, 4);
+});
+
+test("invalidates cached account data after a preference write", async () => {
+  const firestore = fakeFirestore({
+    albumdj_sessions: {
+      "browser-a": {
+        spotifySession: { profile: { id: "spotify-user" } },
+        preferencesMigratedTo: "spotify-user",
+      },
+    },
+    albumdj_users: {
+      "spotify-user": { favouriteAlbums: [] },
+    },
+  });
+  const store = createFirebaseUserStore({ firestore });
+  const owner = { sessionId: "browser-a", spotifyUserId: "spotify-user" };
+
+  await store.load("browser-a");
+  await store.saveFavouriteAlbums(owner, [{ id: "blue", title: "Blue" }]);
+  const reloaded = await store.load("browser-a");
+
+  assert.deepEqual(reloaded.favouriteAlbums, [{ id: "blue", title: "Blue" }]);
+  assert.equal(firestore.reads.length, 4);
+});
 
 test("loads one isolated Album DJ session from Firestore", async () => {
   const firestore = fakeFirestore({
