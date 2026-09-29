@@ -72,7 +72,7 @@ fun stackCoverFlowLayout() = StackCoverFlowLayout(
     coverWidthDp = 194,
     pageSpacingDp = -126,
     horizontalPaddingDp = 96,
-    visibleSideCount = 3,
+    visibleSideCount = 2,
 )
 
 enum class StackHistoryKind {

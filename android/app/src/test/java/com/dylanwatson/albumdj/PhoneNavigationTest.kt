@@ -264,10 +264,10 @@ class PhoneNavigationTest {
     }
 
     @Test
-    fun `stack cover flow exposes seven overlapping albums on a phone`() {
+    fun `stack cover flow exposes five overlapping albums on a phone`() {
         val layout = stackCoverFlowLayout()
 
-        assertEquals(7, layout.visibleCoverCount)
+        assertEquals(5, layout.visibleCoverCount)
         assertEquals(194, layout.coverWidthDp)
         assertEquals(68, layout.pageStrideDp)
     }
