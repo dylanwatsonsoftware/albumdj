@@ -6,3 +6,4 @@
 - When making Android app changes, build and install the debug APK via `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
 - If debugging on a physical device is required, use the Pixel 7 (not the Pixel 8). Target the Pixel 7 via `adb -s` when multiple devices are connected.
 - Every state-changing UI control must visibly reflect its current, selected, completed, disabled, or loading state; never rely on a transient message alone to confirm the change.
+- Make safe state-changing actions feel immediate by updating the UI optimistically, persisting in the background, and rolling back with a clear error if persistence fails.

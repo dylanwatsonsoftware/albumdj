@@ -160,6 +160,7 @@ private fun AlbumDjApp(
     var selectedArtist by remember { mutableStateOf<Artist?>(null) }
     var artistAlbums by remember { mutableStateOf<List<Album>>(emptyList()) }
     var artistLoading by remember { mutableStateOf(false) }
+    var pendingArtistFavouriteIds by remember { mutableStateOf(emptySet<String>()) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(sessionToken, authRevision, refresh) {
@@ -276,15 +277,24 @@ private fun AlbumDjApp(
     val setArtistFavourite: (Artist, Boolean) -> Unit = { artist, favourite ->
         error = null
         notice = null
-        loading = true
-        scope.launch {
-            runCatching { withContext(Dispatchers.IO) { repository.setArtistFavourite(artist, favourite) } }
-                .onSuccess {
-                    account = it
-                    notice = if (favourite) "${artist.name} was added to favourites." else "${artist.name} was removed from favourites."
-                }
-                .onFailure { error = it.message }
-            loading = false
+        val currentAccount = account
+        if (currentAccount == null) {
+            error = "Refresh your Album DJ library first."
+        } else {
+            account = optimisticArtistFavourite(currentAccount, artist, favourite)
+            pendingArtistFavouriteIds = pendingArtistFavouriteIds + artist.id
+            scope.launch {
+                runCatching { withContext(Dispatchers.IO) { repository.setArtistFavourite(artist, favourite) } }
+                    .onSuccess { savedAccount ->
+                        account = account?.copy(favouriteArtists = savedAccount.favouriteArtists) ?: savedAccount
+                        notice = if (favourite) "${artist.name} was added to favourites." else "${artist.name} was removed from favourites."
+                    }
+                    .onFailure {
+                        account = account?.let { latest -> optimisticArtistFavourite(latest, artist, !favourite) }
+                        error = it.message
+                    }
+                pendingArtistFavouriteIds = pendingArtistFavouriteIds - artist.id
+            }
         }
     }
 
@@ -312,6 +322,7 @@ private fun AlbumDjApp(
                 selectedArtist = selectedArtist,
                 artistAlbums = artistAlbums,
                 artistLoading = artistLoading,
+                pendingArtistFavouriteIds = pendingArtistFavouriteIds,
                 closeArtist = { selectedArtist = null },
                 playStack = playStack,
                 addAlbumToStack = addAlbumToStack,
@@ -343,6 +354,7 @@ private fun AlbumDjPhone(
     selectedArtist: Artist?,
     artistAlbums: List<Album>,
     artistLoading: Boolean,
+    pendingArtistFavouriteIds: Set<String>,
     closeArtist: () -> Unit,
     playStack: () -> Unit,
     addAlbumToStack: (Album) -> Unit,
@@ -366,6 +378,7 @@ private fun AlbumDjPhone(
                             albums = artistAlbums,
                             loading = artistLoading,
                             favourite = account?.favouriteArtists.orEmpty().any { it.id == selectedArtist.id },
+                            favouriteSaving = selectedArtist.id in pendingArtistFavouriteIds,
                             favouriteAlbumIds = account?.library?.favourites.orEmpty().mapTo(mutableSetOf()) { it.id },
                             stackAlbumIds = account?.rotation?.albumIds.orEmpty().toSet(),
                             close = closeArtist,
@@ -991,6 +1004,7 @@ private fun ArtistDetailScreen(
     albums: List<Album>,
     loading: Boolean,
     favourite: Boolean,
+    favouriteSaving: Boolean,
     favouriteAlbumIds: Set<String>,
     stackAlbumIds: Set<String>,
     close: () -> Unit,
@@ -1027,13 +1041,23 @@ private fun ArtistDetailScreen(
                     if (favouriteAction.selected) {
                         Button(
                             onClick = { setArtistFavourite(artist, false) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+                            enabled = !favouriteSaving,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Acid,
+                                contentColor = DeepInk,
+                                disabledContainerColor = Acid.copy(alpha = 0.72f),
+                                disabledContentColor = DeepInk,
+                            ),
                             modifier = Modifier.padding(top = 10.dp),
                         ) {
                             Text(favouriteAction.label, fontWeight = FontWeight.Bold)
                         }
                     } else {
-                        OutlinedButton(onClick = { setArtistFavourite(artist, true) }, modifier = Modifier.padding(top = 10.dp)) {
+                        OutlinedButton(
+                            onClick = { setArtistFavourite(artist, true) },
+                            enabled = !favouriteSaving,
+                            modifier = Modifier.padding(top = 10.dp),
+                        ) {
                             Text(favouriteAction.label, color = Ink, fontWeight = FontWeight.Bold)
                         }
                     }

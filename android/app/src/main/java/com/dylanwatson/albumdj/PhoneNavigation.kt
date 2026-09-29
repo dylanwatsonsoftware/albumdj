@@ -144,6 +144,18 @@ fun artistFavouriteAction(favourite: Boolean) = ArtistFavouriteAction(
     selected = favourite,
 )
 
+fun optimisticArtistFavourite(
+    account: AlbumDjAccount,
+    artist: Artist,
+    favourite: Boolean,
+): AlbumDjAccount = account.copy(
+    favouriteArtists = if (favourite) {
+        (account.favouriteArtists + artist).distinctBy { it.id }
+    } else {
+        account.favouriteArtists.filterNot { it.id == artist.id }
+    },
+)
+
 fun shouldClearSearchWhenOpeningArtist(section: PhoneSection): Boolean = section == PhoneSection.DISCOVER
 
 fun stackContentSections(hasAlbums: Boolean): List<StackContentSection> = if (hasAlbums) {

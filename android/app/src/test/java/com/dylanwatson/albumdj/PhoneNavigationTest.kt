@@ -199,6 +199,16 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `favourite artist state changes locally before persistence completes`() {
+        val artist = com.dylanwatson.albumdj.data.Artist("joni", "Joni Mitchell", null)
+        val original = account(connected = true, playlistAccess = true)
+
+        val added = optimisticArtistFavourite(original, artist, favourite = true)
+        assertEquals(listOf("joni"), added.favouriteArtists.map { it.id })
+        assertEquals(emptyList<String>(), optimisticArtistFavourite(added, artist, favourite = false).favouriteArtists.map { it.id })
+    }
+
+    @Test
     fun `opening an artist from discover clears the temporary search mode`() {
         assertEquals(true, shouldClearSearchWhenOpeningArtist(PhoneSection.DISCOVER))
         assertEquals(false, shouldClearSearchWhenOpeningArtist(PhoneSection.COLLECTION))
