@@ -25,9 +25,11 @@ import {
   getRotationPlaybackMessage,
   getRotationSlots,
   getStackPlaylistOpenUrl,
+  optimisticRotation,
   removeRotationAlbum,
   toggleRotationAlbum,
 } from "./rotation.js";
+import { runOptimisticAction } from "./optimistic-action.js";
 import {
   artistReleaseErrorMessage,
   buildAutocompleteSuggestions,
@@ -61,6 +63,7 @@ import { spotifyOpenUrl } from "./playback-fallback.js";
 const targetsElement = document.querySelector("#targets");
 const albumsElement = document.querySelector("#albums");
 const nowPlayingElement = document.querySelector("#now-playing");
+const actionStatusElement = document.querySelector("#action-status");
 const refreshDevicesButton = document.querySelector("#refresh-devices");
 const scanNfcButton = document.querySelector("#scan-nfc");
 const nfcStatusElement = document.querySelector("#nfc-status");
@@ -134,6 +137,10 @@ let autocompleteSuggestions = [];
 let activeSuggestionIndex = -1;
 let autocompleteTimer = null;
 let autocompleteRequestNumber = 0;
+const pendingFavouriteAlbumIds = new Set();
+const pendingFavouriteArtistIds = new Set();
+const pendingRotationAlbumIds = new Set();
+let actionStatusTimer = null;
 let cachedSearch = { query: "", results: null };
 let spotifyStatus = cachedUi?.spotifyStatus ?? null;
 let spotifyConnected = spotifyStatus?.connected ?? false;
@@ -154,6 +161,86 @@ function persistUiCache() {
     artistAlbums,
     spotifyStatus,
   });
+}
+
+function showActionFailure(action, error) {
+  clearTimeout(actionStatusTimer);
+  actionStatusElement.textContent = `${action} ${error.message || "Please try again."}`;
+  actionStatusElement.hidden = false;
+  actionStatusTimer = setTimeout(() => { actionStatusElement.hidden = true; }, 6_000);
+}
+
+function renderFavouriteAlbumState() {
+  persistUiCache();
+  renderCollection();
+  renderRotation();
+  renderAlbums();
+  renderCoverFlow({ preserveWindow: true });
+}
+
+function renderFavouriteArtistState() {
+  persistUiCache();
+  renderCollection();
+  if (!artistDiscography.hidden) {
+    const artist = routeFromHash(location.hash).artist;
+    if (artist) artistDiscographyActions.replaceChildren(favouriteButton(artist));
+  }
+}
+
+async function saveFavouriteAlbums(nextAlbums, albumId) {
+  const previousAlbums = favouriteAlbums;
+  pendingFavouriteAlbumIds.add(albumId);
+  const result = await runOptimisticAction({
+    apply: () => {
+      favouriteAlbums = nextAlbums;
+      renderFavouriteAlbumState();
+    },
+    persist: () => request("/api/favourite-albums", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ albums: nextAlbums }),
+    }),
+    reconcile: (savedAlbums) => {
+      favouriteAlbums = savedAlbums;
+      renderFavouriteAlbumState();
+    },
+    rollback: () => {
+      favouriteAlbums = previousAlbums;
+      renderFavouriteAlbumState();
+    },
+    onError: (error) => showActionFailure("Couldn’t update that favourite.", error),
+  });
+  pendingFavouriteAlbumIds.delete(albumId);
+  renderFavouriteAlbumState();
+  return result;
+}
+
+async function saveFavouriteArtists(nextArtists, artistId) {
+  const previousArtists = favouriteArtists;
+  pendingFavouriteArtistIds.add(artistId);
+  const result = await runOptimisticAction({
+    apply: () => {
+      favouriteArtists = nextArtists;
+      renderFavouriteArtistState();
+    },
+    persist: () => request("/api/favourite-artists", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ artists: nextArtists }),
+    }),
+    reconcile: (savedArtists) => {
+      favouriteArtists = savedArtists;
+      renderFavouriteArtistState();
+    },
+    rollback: () => {
+      favouriteArtists = previousArtists;
+      renderFavouriteArtistState();
+    },
+    onError: (error) => showActionFailure("Couldn’t update that favourite artist.", error),
+  });
+  pendingFavouriteArtistIds.delete(artistId);
+  renderFavouriteArtistState();
+  return result;
 }
 const scheduleCoverFlowDragRender = createCoverFlowFrameScheduler({
   requestFrame: requestAnimationFrame,
@@ -297,16 +384,15 @@ function rotationAlbumButton(album) {
   button.className = "result-play result-rotation";
   const updateLabel = () => {
     button.textContent = rotation.albumIds.includes(album.id) ? "Remove from stack" : "Add to stack";
+    button.disabled = pendingRotationAlbumIds.has(album.id);
+    button.setAttribute("aria-busy", String(pendingRotationAlbumIds.has(album.id)));
   };
   updateLabel();
   button.addEventListener("click", async () => {
-    button.disabled = true;
-    try {
-      await toggleAlbumInRotation(album);
-      updateLabel();
-    } finally {
-      button.disabled = false;
-    }
+    const saving = toggleAlbumInRotation(album);
+    updateLabel();
+    await saving;
+    updateLabel();
   });
   return button;
 }
@@ -368,6 +454,8 @@ function renderAlbums() {
     rotationButton.className = "pair-button rotation-card-button";
     rotationButton.type = "button";
     rotationButton.textContent = rotation.albumIds.includes(album.id) ? "Remove from rotation" : "Add to rotation";
+    rotationButton.disabled = pendingRotationAlbumIds.has(album.id);
+    rotationButton.setAttribute("aria-busy", String(pendingRotationAlbumIds.has(album.id)));
     rotationButton.addEventListener("click", () => toggleAlbumInRotation(album.id));
 
     const viewArtistButton = artistAlbumsButton(album, "pair-button artist-card-button");
@@ -394,20 +482,16 @@ function favouriteButton(artist) {
   button.textContent = action.label;
   button.setAttribute("aria-pressed", String(action.isFavourite));
   button.classList.toggle("saved", action.isFavourite);
-  button.disabled = !action.canAdd;
+  button.disabled = !action.canAdd || pendingFavouriteArtistIds.has(artist.id);
+  button.setAttribute("aria-busy", String(pendingFavouriteArtistIds.has(artist.id)));
   if (!action.canAdd) return button;
   button.addEventListener("click", async () => {
-    button.disabled = true;
-    favouriteArtists = toggleFavouriteArtist(favouriteArtists, artist);
-    favouriteArtists = await request("/api/favourite-artists", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ artists: favouriteArtists }),
-    });
-    persistUiCache();
-    renderCollection();
-    await loadRecentFavouriteReleases();
-    button.replaceWith(favouriteButton(artist));
+    const saving = saveFavouriteArtists(toggleFavouriteArtist(favouriteArtists, artist), artist.id);
+    const pendingButton = favouriteButton(artist);
+    button.replaceWith(pendingButton);
+    const result = await saving;
+    if (pendingButton.isConnected) pendingButton.replaceWith(favouriteButton(artist));
+    if (result.ok) await loadRecentFavouriteReleases();
   });
   return button;
 }
@@ -469,22 +553,15 @@ function favouriteAlbumButton(album) {
   button.textContent = action.label;
   button.setAttribute("aria-pressed", String(action.isFavourite));
   button.classList.toggle("saved", action.isFavourite);
-  button.disabled = !action.canAdd;
+  button.disabled = !action.canAdd || pendingFavouriteAlbumIds.has(album.id);
+  button.setAttribute("aria-busy", String(pendingFavouriteAlbumIds.has(album.id)));
   if (!action.canAdd) return button;
   button.addEventListener("click", async () => {
-    button.disabled = true;
-    favouriteAlbums = toggleFavouriteAlbum(favouriteAlbums, album);
-    favouriteAlbums = await request("/api/favourite-albums", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ albums: favouriteAlbums }),
-    });
-    persistUiCache();
-    renderCollection();
-    button.replaceWith(favouriteAlbumButton(album));
-    renderRotation();
-    renderAlbums();
-    renderCoverFlow({ preserveWindow: true });
+    const saving = saveFavouriteAlbums(toggleFavouriteAlbum(favouriteAlbums, album), album.id);
+    const pendingButton = favouriteAlbumButton(album);
+    button.replaceWith(pendingButton);
+    await saving;
+    if (pendingButton.isConnected) pendingButton.replaceWith(favouriteAlbumButton(album));
   });
   return button;
 }
@@ -536,16 +613,10 @@ function renderFavouriteAlbums(albums = favouriteAlbums) {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.textContent = "Remove from favourites";
+    remove.disabled = pendingFavouriteAlbumIds.has(album.id);
+    remove.setAttribute("aria-busy", String(pendingFavouriteAlbumIds.has(album.id)));
     remove.addEventListener("click", async () => {
-      remove.disabled = true;
-      favouriteAlbums = removeFavouriteAlbum(favouriteAlbums, album.id);
-      favouriteAlbums = await request("/api/favourite-albums", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ albums: favouriteAlbums }),
-      });
-      persistUiCache();
-      renderCollection();
+      await saveFavouriteAlbums(removeFavouriteAlbum(favouriteAlbums, album.id), album.id);
     });
     menu.append(menuToggle, remove);
     card.append(play);
@@ -660,17 +731,11 @@ function renderFavouriteArtists(artists = favouriteArtists) {
     remove.className = "favourite-remove";
     remove.textContent = "Remove from favourites";
     remove.setAttribute("aria-label", `Remove ${artist.name} from favourites`);
+    remove.disabled = pendingFavouriteArtistIds.has(artist.id);
+    remove.setAttribute("aria-busy", String(pendingFavouriteArtistIds.has(artist.id)));
     remove.addEventListener("click", async () => {
-      remove.disabled = true;
-      favouriteArtists = removeFavouriteArtist(favouriteArtists, artist.id);
-      favouriteArtists = await request("/api/favourite-artists", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ artists: favouriteArtists }),
-      });
-      persistUiCache();
-      renderCollection();
-      await loadRecentFavouriteReleases();
+      const result = await saveFavouriteArtists(removeFavouriteArtist(favouriteArtists, artist.id), artist.id);
+      if (result.ok) await loadRecentFavouriteReleases();
     });
     menu.append(menuToggle, remove);
     card.append(artwork, copy, menu);
@@ -1093,10 +1158,12 @@ function renderCoverFlow({ preserveWindow = false } = {}) {
   coverflowFavouriteButton.textContent = favouriteAction.label;
   coverflowFavouriteButton.setAttribute("aria-pressed", String(favouriteAction.isFavourite));
   coverflowFavouriteButton.classList.toggle("saved", favouriteAction.isFavourite);
-  coverflowFavouriteButton.disabled = !favouriteAction.canAdd;
+  coverflowFavouriteButton.disabled = !favouriteAction.canAdd || pendingFavouriteAlbumIds.has(activeAlbum.id);
+  coverflowFavouriteButton.setAttribute("aria-busy", String(pendingFavouriteAlbumIds.has(activeAlbum.id)));
   coverflowArtistAlbumsButton.hidden = !activeAlbum.artistId;
   coverflowPairButton.disabled = !("NDEFReader" in globalThis);
-  rotationToggleButton.disabled = false;
+  rotationToggleButton.disabled = pendingRotationAlbumIds.has(activeAlbum.id);
+  rotationToggleButton.setAttribute("aria-busy", String(pendingRotationAlbumIds.has(activeAlbum.id)));
   rotationToggleButton.textContent = "Remove from stack";
 }
 
@@ -1250,9 +1317,10 @@ function renderRotation() {
     ejectButton.type = "button";
     ejectButton.textContent = "Eject";
     ejectButton.setAttribute("aria-label", `Remove ${album.title} from rotation`);
+    ejectButton.disabled = pendingRotationAlbumIds.has(album.id);
+    ejectButton.setAttribute("aria-busy", String(pendingRotationAlbumIds.has(album.id)));
     ejectButton.addEventListener("click", async () => {
-      ejectButton.disabled = true;
-      await saveRotation(removeRotationAlbum(rotation.albumIds, album.id));
+      await saveRotation(removeRotationAlbum(rotation.albumIds, album.id), [], { pendingAlbumId: album.id });
     });
 
     if (actions.includes("play")) actionsContainer.append(playButton);
@@ -1266,27 +1334,55 @@ function renderRotation() {
   }));
 }
 
-async function saveRotation(albumIds = rotation.albumIds, albums = []) {
-  rotationPlaybackNotice = null;
-  rotation = await request("/api/rotation", {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      albumIds,
-      albums,
-      durationDays: Number(rotationDuration.value),
-      mode: "sequential",
-    }),
-  });
-  if (albums.length) {
-    const albumById = new Map(state.albums.map((album) => [album.id, album]));
-    for (const album of albums) albumById.set(album.id, album);
-    state = { ...state, albums: [...albumById.values()] };
-  }
+function renderRotationState() {
   persistUiCache();
   renderRotation();
   renderAlbums();
-  renderCoverFlow();
+  renderCoverFlow({ preserveWindow: true });
+}
+
+async function saveRotation(albumIds = rotation.albumIds, albums = [], { pendingAlbumId = null } = {}) {
+  const previousRotation = rotation;
+  const nextRotation = optimisticRotation(rotation, {
+    albumIds,
+    albums,
+    durationDays: Number(rotationDuration.value),
+  });
+  rotationPlaybackNotice = null;
+  if (pendingAlbumId) pendingRotationAlbumIds.add(pendingAlbumId);
+  const result = await runOptimisticAction({
+    apply: () => {
+      rotation = nextRotation;
+      renderRotationState();
+    },
+    persist: () => request("/api/rotation", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        albumIds,
+        albums,
+        durationDays: nextRotation.durationDays,
+        mode: "sequential",
+      }),
+    }),
+    reconcile: (savedRotation) => {
+      rotation = savedRotation;
+      if (albums.length) {
+        const albumById = new Map(state.albums.map((album) => [album.id, album]));
+        for (const album of albums) albumById.set(album.id, album);
+        state = { ...state, albums: [...albumById.values()] };
+      }
+      renderRotationState();
+    },
+    rollback: () => {
+      rotation = previousRotation;
+      renderRotationState();
+    },
+    onError: (error) => showActionFailure("Couldn’t update your stack.", error),
+  });
+  if (pendingAlbumId) pendingRotationAlbumIds.delete(pendingAlbumId);
+  renderRotationState();
+  return result;
 }
 
 async function toggleAlbumInRotation(albumOrId) {
@@ -1298,6 +1394,7 @@ async function toggleAlbumInRotation(albumOrId) {
   await saveRotation(
     toggleRotationAlbum(rotation.albumIds, albumId),
     isAdding && album ? [album] : [],
+    { pendingAlbumId: albumId },
   );
 }
 
@@ -1528,18 +1625,7 @@ async function startApp() {
   coverflowFavouriteButton.addEventListener("click", async () => {
     const album = flowAlbums()[activeCoverIndex];
     if (!album || !getFavouriteAlbumActionState(favouriteAlbums, album).canAdd) return;
-    coverflowFavouriteButton.disabled = true;
-    favouriteAlbums = toggleFavouriteAlbum(favouriteAlbums, album);
-    favouriteAlbums = await request("/api/favourite-albums", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ albums: favouriteAlbums }),
-    });
-    persistUiCache();
-    renderCollection();
-    renderRotation();
-    renderAlbums();
-    renderCoverFlow({ preserveWindow: true });
+    await saveFavouriteAlbums(toggleFavouriteAlbum(favouriteAlbums, album), album.id);
   });
   coverflowArtistAlbumsButton.addEventListener("click", () => {
     const album = flowAlbums()[activeCoverIndex];

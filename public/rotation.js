@@ -8,6 +8,21 @@ export function removeRotationAlbum(albumIds, albumId) {
   return albumIds.filter((id) => id !== albumId);
 }
 
+export function optimisticRotation(
+  current,
+  { albumIds = current.albumIds, albums = [], durationDays = current.durationDays } = {},
+) {
+  const albumById = new Map(current.albums.map((album) => [album.id, album]));
+  for (const album of albums) albumById.set(album.id, album);
+  return {
+    ...current,
+    albumIds,
+    albums: albumIds.map((id) => albumById.get(id)).filter(Boolean),
+    durationDays,
+    mode: "sequential",
+  };
+}
+
 export function getRotationSlots(albums) {
   return albums.map((album, index) => ({
     albumId: album.id,

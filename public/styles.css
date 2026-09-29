@@ -866,6 +866,24 @@ h2 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; }
 .pair-button:not(:disabled):hover { background: var(--acid); color: var(--accent-ink); }
 .album-card-favourite.saved:disabled { border-color: var(--acid); background: var(--acid); color: var(--accent-ink); opacity: 1; cursor: default; }
 
+.action-status {
+  position: fixed;
+  z-index: 90;
+  top: 74px;
+  left: 50%;
+  width: min(560px, calc(100% - 28px));
+  transform: translateX(-50%);
+  border: 1px solid #a84c45;
+  border-radius: 12px;
+  background: #3a1e1b;
+  box-shadow: 0 14px 44px rgba(0,0,0,.4);
+  padding: 11px 14px;
+  color: #ffaaa0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.action-status[hidden] { display: none; }
+
 .now-playing {
   position: fixed;
   left: 50%;

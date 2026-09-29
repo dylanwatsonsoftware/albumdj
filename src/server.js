@@ -25,6 +25,7 @@ const assets = new Map([
   ["/live-playback.js", ["live-playback.js", "text/javascript; charset=utf-8"]],
   ["/coverflow.js", ["coverflow.js", "text/javascript; charset=utf-8"]],
   ["/rotation.js", ["rotation.js", "text/javascript; charset=utf-8"]],
+  ["/optimistic-action.js", ["optimistic-action.js", "text/javascript; charset=utf-8"]],
   ["/discovery.js", ["discovery.js", "text/javascript; charset=utf-8"]],
   ["/navigation.js", ["navigation.js", "text/javascript; charset=utf-8"]],
   ["/playback-fallback.js", ["playback-fallback.js", "text/javascript; charset=utf-8"]],

@@ -6,6 +6,7 @@ import {
   getRotationPlaybackMessage,
   getStackPlaylistOpenUrl,
   getRotationSlots,
+  optimisticRotation,
   getStackTableColumns,
   removeRotationAlbum,
   toggleRotationAlbum,
@@ -19,6 +20,30 @@ test("adds an album to a rotation without duplicating it", () => {
 test("removes only the requested album from the visible rotation shelf", () => {
   assert.deepEqual(removeRotationAlbum(["a", "b", "c"], "b"), ["a", "c"]);
   assert.deepEqual(removeRotationAlbum(["a", "c"], "missing"), ["a", "c"]);
+});
+
+test("builds the visible stack state immediately while the server saves it", () => {
+  const current = {
+    albumIds: ["a"],
+    albums: [{ id: "a", title: "First" }],
+    durationDays: 7,
+    mode: "sequential",
+    history: [{ albumId: "a" }],
+  };
+
+  assert.deepEqual(
+    optimisticRotation(current, {
+      albumIds: ["a", "b"],
+      albums: [{ id: "b", title: "Second" }],
+      durationDays: 14,
+    }),
+    {
+      ...current,
+      albumIds: ["a", "b"],
+      albums: [{ id: "a", title: "First" }, { id: "b", title: "Second" }],
+      durationDays: 14,
+    },
+  );
 });
 
 test("turns the album stack into numbered playable changer slots", () => {

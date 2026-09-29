@@ -91,6 +91,7 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(html, /data-collection-filter="albums"/);
     assert.match(html, /id="favourite-artist-sort"/);
     assert.match(html, /id="favourite-album-sort"/);
+    assert.match(html, /id="action-status"/);
     assert.match(html, /class="[^"]*settings-section[^"]*"/);
 
     const startupModule = await fetch(`${baseUrl}/startup.js`);
@@ -98,6 +99,8 @@ test("serves the mobile card-scanner interface", async () => {
     assert.match(startupModule.headers.get("content-type"), /javascript/);
     const navigationModule = await fetch(`${baseUrl}/navigation.js`);
     assert.equal(navigationModule.status, 200);
+    const optimisticActionModule = await fetch(`${baseUrl}/optimistic-action.js`);
+    assert.equal(optimisticActionModule.status, 200);
     const appModule = await (await fetch(`${baseUrl}/app.js`)).text();
     const moduleImports = new Map([...appModule.matchAll(/import\s+\{([^}]*)\}\s+from\s+"([^"]+)"/g)]
       .map(([, names, path]) => [path, names]));
