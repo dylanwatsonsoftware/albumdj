@@ -30,6 +30,11 @@ enum class StackPlaybackAction {
     CONNECT,
 }
 
+enum class DiscoverBackAction {
+    CLEAR_SEARCH,
+    PASS_THROUGH,
+}
+
 enum class StackContentSection {
     PLAYBACK,
     COVERFLOW,
@@ -157,6 +162,12 @@ fun optimisticArtistFavourite(
 )
 
 fun shouldClearSearchWhenOpeningArtist(section: PhoneSection): Boolean = section == PhoneSection.DISCOVER
+
+fun discoverBackAction(hasSearchResults: Boolean): DiscoverBackAction = if (hasSearchResults) {
+    DiscoverBackAction.CLEAR_SEARCH
+} else {
+    DiscoverBackAction.PASS_THROUGH
+}
 
 fun stackContentSections(hasAlbums: Boolean): List<StackContentSection> = if (hasAlbums) {
     listOf(

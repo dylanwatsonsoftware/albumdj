@@ -216,6 +216,12 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `discover search results are treated as a nested back destination`() {
+        assertEquals(DiscoverBackAction.CLEAR_SEARCH, discoverBackAction(hasSearchResults = true))
+        assertEquals(DiscoverBackAction.PASS_THROUGH, discoverBackAction(hasSearchResults = false))
+    }
+
+    @Test
     fun `stack playback action is the first control after the heading`() {
         assertEquals(
             listOf(StackContentSection.PLAYBACK, StackContentSection.COVERFLOW, StackContentSection.ALBUM_DETAILS, StackContentSection.ALBUM_LIST),

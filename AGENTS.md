@@ -7,3 +7,4 @@
 - If debugging on a physical device is required, use the Pixel 7 (not the Pixel 8). Target the Pixel 7 via `adb -s` when multiple devices are connected.
 - Every state-changing UI control must visibly reflect its current, selected, completed, disabled, or loading state; never rely on a transient message alone to confirm the change.
 - Make safe state-changing actions feel immediate by updating the UI optimistically, persisting in the background, and rolling back with a clear error if persistence fails.
+- Android nested views and temporary modes must participate in system back navigation so the edge-swipe gesture unwinds one level before exiting the app.

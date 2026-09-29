@@ -510,6 +510,12 @@ private fun DiscoverScreen(
     val stack = library.stack
     var query by remember { mutableStateOf("") }
     var browseQuery by remember { mutableStateOf("") }
+    val backAction = discoverBackAction(searchResults != null)
+    val exitSearch = {
+        query = ""
+        clearSearch()
+    }
+    BackHandler(enabled = backAction == DiscoverBackAction.CLEAR_SEARCH, onBack = exitSearch)
     val ideas = discoverAlbumIdeas(library, browseQuery)
     val submitSearch = { if (query.isNotBlank() && !searchLoading) search(query.trim()) }
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -580,11 +586,11 @@ private fun DiscoverScreen(
         }
         if (searchResults != null) {
             if (searchResults.artists.isNotEmpty()) {
-                item { CollectionHeading("Artists", "CLEAR", clearSearch) }
+                item { CollectionHeading("Artists", "CLEAR", exitSearch) }
                 item { ArtistShelf(searchResults.artists, openArtist) }
             }
             if (searchResults.albums.isNotEmpty()) {
-                item { CollectionHeading("Album results", "CLEAR", clearSearch) }
+                item { CollectionHeading("Album results", "CLEAR", exitSearch) }
                 items(searchResults.albums.chunked(2)) { rowAlbums ->
                     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         rowAlbums.forEach { album ->
@@ -597,7 +603,7 @@ private fun DiscoverScreen(
                 }
             }
             if (searchResults.albums.isEmpty() && searchResults.artists.isEmpty()) {
-                item { CollectionHeading("Search results", "CLEAR", clearSearch) }
+                item { CollectionHeading("Search results", "CLEAR", exitSearch) }
                 item { EmptyCard("No matches", "Try another artist or album name.") }
             }
         }
@@ -1537,6 +1543,9 @@ private fun PhoneNavigation(selected: PhoneSection, select: (PhoneSection) -> Un
 private fun CarPreview(library: AlbumDjLibrary, close: () -> Unit, playAlbum: (String) -> Unit) {
     var parentId by remember { mutableStateOf(AlbumDjLibrary.ROOT_ID) }
     val carItems = library.children(parentId)
+    BackHandler {
+        if (parentId == AlbumDjLibrary.ROOT_ID) close() else parentId = AlbumDjLibrary.ROOT_ID
+    }
     Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.statusBarsPadding().padding(22.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
