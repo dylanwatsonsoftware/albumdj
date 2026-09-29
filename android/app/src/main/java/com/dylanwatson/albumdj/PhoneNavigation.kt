@@ -35,6 +35,9 @@ fun noticeAutoDismissMillis(notice: String?): Long? = notice
     ?.takeIf(String::isNotBlank)
     ?.let { SUCCESS_NOTICE_DURATION_MS }
 
+fun statusOverlayVisible(loading: Boolean, error: String?, notice: String?): Boolean =
+    loading || error != null || notice != null
+
 enum class StackPlaybackAction {
     PLAY,
     REAUTHORIZE,

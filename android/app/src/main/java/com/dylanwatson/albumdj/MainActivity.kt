@@ -501,64 +501,76 @@ private fun AlbumDjPhone(
     Surface(color = Canvas, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             AppHeader(account?.profileName, connected) { section = PhoneSection.SETTINGS }
-            if (loading || error != null || notice != null) StatusStrip(loading, error, notice)
-            Box(Modifier.weight(1f)) {
-                key(selectedArtist?.id ?: section.name) {
-                    if (selectedArtist != null) {
-                        ArtistDetailScreen(
-                            artist = selectedArtist,
-                            albums = artistAlbums,
-                            loading = artistLoading,
-                            favourite = account?.favouriteArtists.orEmpty().any { it.id == selectedArtist.id },
-                            favouriteSaving = selectedArtist.id in pendingArtistFavouriteIds,
-                            favouriteAlbumIds = account?.library?.favourites.orEmpty().mapTo(mutableSetOf()) { it.id },
-                            stackAlbumIds = account?.rotation?.albumIds.orEmpty().toSet(),
-                            close = closeArtist,
-                            playAlbum = playAlbum,
-                            addAlbumToStack = addAlbumToStack,
-                            setAlbumFavourite = setAlbumFavourite,
-                            setArtistFavourite = setArtistFavourite,
-                            backLabel = "Back to ${section.label}",
-                        )
-                    } else when (section) {
-                        PhoneSection.DISCOVER -> DiscoverScreen(
-                            library,
-                            connected,
-                            searchResults,
-                            suggestionResults,
-                            searchLoading,
-                            search,
-                            suggestSearch,
-                            clearSearch,
-                            { section = PhoneSection.COLLECTION },
-                            { section = PhoneSection.STACK },
-                            playAlbum,
-                            addAlbumToStack,
-                            setAlbumFavourite,
-                            deepLinkSearchQuery,
-                            { deepLinkSearchQuery = null },
-                            { artist ->
-                                if (shouldClearSearchWhenOpeningArtist(section)) clearSearch()
-                                openArtist(artist)
-                            },
-                        )
-                        PhoneSection.COLLECTION -> CollectionScreen(
-                            account?.favouriteArtists.orEmpty(), library, playAlbum, addAlbumToStack,
-                            setAlbumFavourite, openArtist, pairCard,
-                        )
-                        PhoneSection.STACK -> StackScreen(
-                            library,
-                            account?.rotation?.history.orEmpty(),
-                            stackPlaybackAction(account),
-                            playAlbum,
-                            playStack,
-                            addAlbumToStack,
-                            ejectAlbum,
-                            setAlbumFavourite,
-                            openArtist,
-                        )
-                        PhoneSection.SETTINGS -> SettingsScreen(account, connected, nfcAvailable, connect, reauthorize, refresh, preview, scanCard)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                Box(Modifier.fillMaxSize()) {
+                    key(selectedArtist?.id ?: section.name) {
+                        if (selectedArtist != null) {
+                            ArtistDetailScreen(
+                                artist = selectedArtist,
+                                albums = artistAlbums,
+                                loading = artistLoading,
+                                favourite = account?.favouriteArtists.orEmpty().any { it.id == selectedArtist.id },
+                                favouriteSaving = selectedArtist.id in pendingArtistFavouriteIds,
+                                favouriteAlbumIds = account?.library?.favourites.orEmpty().mapTo(mutableSetOf()) { it.id },
+                                stackAlbumIds = account?.rotation?.albumIds.orEmpty().toSet(),
+                                close = closeArtist,
+                                playAlbum = playAlbum,
+                                addAlbumToStack = addAlbumToStack,
+                                setAlbumFavourite = setAlbumFavourite,
+                                setArtistFavourite = setArtistFavourite,
+                                backLabel = "Back to ${section.label}",
+                            )
+                        } else when (section) {
+                            PhoneSection.DISCOVER -> DiscoverScreen(
+                                library,
+                                connected,
+                                searchResults,
+                                suggestionResults,
+                                searchLoading,
+                                search,
+                                suggestSearch,
+                                clearSearch,
+                                { section = PhoneSection.COLLECTION },
+                                { section = PhoneSection.STACK },
+                                playAlbum,
+                                addAlbumToStack,
+                                setAlbumFavourite,
+                                deepLinkSearchQuery,
+                                { deepLinkSearchQuery = null },
+                                { artist ->
+                                    if (shouldClearSearchWhenOpeningArtist(section)) clearSearch()
+                                    openArtist(artist)
+                                },
+                            )
+                            PhoneSection.COLLECTION -> CollectionScreen(
+                                account?.favouriteArtists.orEmpty(), library, playAlbum, addAlbumToStack,
+                                setAlbumFavourite, openArtist, pairCard,
+                            )
+                            PhoneSection.STACK -> StackScreen(
+                                library,
+                                account?.rotation?.history.orEmpty(),
+                                stackPlaybackAction(account),
+                                playAlbum,
+                                playStack,
+                                addAlbumToStack,
+                                ejectAlbum,
+                                setAlbumFavourite,
+                                openArtist,
+                            )
+                            PhoneSection.SETTINGS -> SettingsScreen(account, connected, nfcAvailable, connect, reauthorize, refresh, preview, scanCard)
+                        }
                     }
+                }
+                if (statusOverlayVisible(loading, error, notice)) {
+                    StatusStrip(
+                        loading,
+                        error,
+                        notice,
+                        Modifier.align(Alignment.TopCenter)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .zIndex(10f)
+                            .clip(RoundedCornerShape(14.dp)),
+                    )
                 }
             }
             PhoneNavigation(section) {
@@ -593,10 +605,10 @@ private fun AppHeader(profileName: String?, connected: Boolean, openSettings: ()
 }
 
 @Composable
-private fun StatusStrip(loading: Boolean, error: String?, notice: String?) {
+private fun StatusStrip(loading: Boolean, error: String?, notice: String?, modifier: Modifier = Modifier) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().background(if (error == null) Raised else Color(0xFF3A1E1B)).padding(horizontal = 18.dp, vertical = 9.dp),
+        modifier = modifier.fillMaxWidth().background(if (error == null) Raised else Color(0xFF3A1E1B)).padding(horizontal = 18.dp, vertical = 9.dp),
     ) {
         if (loading) CircularProgressIndicator(color = Acid, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
         Text(

@@ -119,6 +119,14 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `status feedback is rendered as an overlay without reserving page space`() {
+        assertEquals(false, statusOverlayVisible(loading = false, error = null, notice = null))
+        assertEquals(true, statusOverlayVisible(loading = true, error = null, notice = null))
+        assertEquals(true, statusOverlayVisible(loading = false, error = "Offline", notice = null))
+        assertEquals(true, statusOverlayVisible(loading = false, error = null, notice = "Saved"))
+    }
+
+    @Test
     fun `collection filters artists and albums together by name`() {
         val view = collectionView(
             artists = listOf(
