@@ -3,6 +3,7 @@ package com.dylanwatson.albumdj
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumPlayback
 import com.dylanwatson.albumdj.data.Rotation
+import com.dylanwatson.albumdj.data.RotationHistoryEntry
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import org.junit.Assert.assertEquals
@@ -207,6 +208,36 @@ class PhoneNavigationTest {
             listOf(StackAlbumAction.PLAY, StackAlbumAction.FAVOURITE, StackAlbumAction.EJECT),
             stackAlbumActions(hasArtist = false),
         )
+    }
+
+    @Test
+    fun `stack history filters past albums and sorts by repeat listens`() {
+        val history = listOf(
+            RotationHistoryEntry(Album("blue", "Blue", "Joni Mitchell"), 1_000, 9_000, 10_000, null, 0, null, 2),
+            RotationHistoryEntry(Album("rainbows", "In Rainbows", "Radiohead"), 2_000, 5_000, null, 8_000, 3_000, 3_000, 1),
+            RotationHistoryEntry(Album("kid-a", "Kid A", "Radiohead"), 3_000, 7_000, null, 9_000, 4_000, 4_000, 4),
+        )
+
+        val view = stackHistoryView(history, "radio", StackHistoryKind.PAST, StackHistoryOrder.TIMES_ADDED, now = 12_000)
+
+        assertEquals(listOf("Kid A", "In Rainbows"), view.map { it.album.title })
+    }
+
+    @Test
+    fun `stack history durations include the current visit`() {
+        val active = RotationHistoryEntry(
+            album = Album("blue", "Blue", "Joni Mitchell"),
+            firstAddedAt = 1_000,
+            lastAddedAt = 8_000,
+            currentAddedAt = 8_000,
+            lastRemovedAt = 6_000,
+            totalDurationMs = 5_000,
+            lastDurationMs = 5_000,
+            timesAdded = 2,
+        )
+
+        assertEquals(4_000L, activeStackDuration(active, now = 12_000))
+        assertEquals(9_000L, totalStackDuration(active, now = 12_000))
     }
 
     private fun account(connected: Boolean, playlistAccess: Boolean) = AlbumDjAccount(

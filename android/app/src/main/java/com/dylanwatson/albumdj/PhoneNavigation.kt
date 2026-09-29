@@ -3,6 +3,7 @@ package com.dylanwatson.albumdj
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumPlayback
 import com.dylanwatson.albumdj.data.Artist
+import com.dylanwatson.albumdj.data.RotationHistoryEntry
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
@@ -34,6 +35,19 @@ enum class StackAlbumAction {
     FAVOURITE,
     ARTIST,
     EJECT,
+}
+
+enum class StackHistoryKind {
+    ALL,
+    CURRENT,
+    PAST,
+}
+
+enum class StackHistoryOrder {
+    RECENT,
+    TOTAL_TIME,
+    TIMES_ADDED,
+    ALBUM,
 }
 
 data class ArtistFavouriteAction(
@@ -141,6 +155,39 @@ fun stackAlbumActions(hasArtist: Boolean): List<StackAlbumAction> = buildList {
     add(StackAlbumAction.FAVOURITE)
     if (hasArtist) add(StackAlbumAction.ARTIST)
     add(StackAlbumAction.EJECT)
+}
+
+fun activeStackDuration(entry: RotationHistoryEntry, now: Long): Long = entry.currentAddedAt
+    ?.let { (now - it).coerceAtLeast(0) }
+    ?: 0
+
+fun totalStackDuration(entry: RotationHistoryEntry, now: Long): Long = entry.totalDurationMs + activeStackDuration(entry, now)
+
+fun stackHistoryView(
+    history: List<RotationHistoryEntry>,
+    query: String,
+    kind: StackHistoryKind,
+    order: StackHistoryOrder,
+    now: Long,
+): List<RotationHistoryEntry> {
+    val search = query.trim()
+    val filtered = history.filter { entry ->
+        val matchesQuery = search.isEmpty() ||
+            entry.album.title.contains(search, ignoreCase = true) ||
+            entry.album.artist.contains(search, ignoreCase = true)
+        val matchesKind = when (kind) {
+            StackHistoryKind.ALL -> true
+            StackHistoryKind.CURRENT -> entry.currentAddedAt != null
+            StackHistoryKind.PAST -> entry.currentAddedAt == null
+        }
+        matchesQuery && matchesKind
+    }
+    return when (order) {
+        StackHistoryOrder.RECENT -> filtered.sortedByDescending { maxOf(it.lastAddedAt ?: 0, it.lastRemovedAt ?: 0) }
+        StackHistoryOrder.TOTAL_TIME -> filtered.sortedByDescending { totalStackDuration(it, now) }
+        StackHistoryOrder.TIMES_ADDED -> filtered.sortedByDescending { it.timesAdded }
+        StackHistoryOrder.ALBUM -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.album.title })
+    }
 }
 
 fun stackPlaybackAction(account: AlbumDjAccount?): StackPlaybackAction = when {

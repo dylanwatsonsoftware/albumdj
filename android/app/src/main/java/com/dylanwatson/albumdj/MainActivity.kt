@@ -3,6 +3,7 @@ package com.dylanwatson.albumdj
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.format.DateUtils
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -70,6 +71,7 @@ import coil.compose.AsyncImage
 import com.dylanwatson.albumdj.data.AlbumDjAccount
 import com.dylanwatson.albumdj.data.AlbumDjRepository
 import com.dylanwatson.albumdj.data.Artist
+import com.dylanwatson.albumdj.data.RotationHistoryEntry
 import com.dylanwatson.albumdj.data.SearchResults
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
@@ -384,7 +386,17 @@ private fun AlbumDjPhone(
                             },
                         )
                         PhoneSection.COLLECTION -> CollectionScreen(account?.favouriteArtists.orEmpty(), library, playAlbum, openArtist)
-                        PhoneSection.STACK -> StackScreen(library, stackPlaybackAction(account), playAlbum, playStack, ejectAlbum, setAlbumFavourite, openArtist)
+                        PhoneSection.STACK -> StackScreen(
+                            library,
+                            account?.rotation?.history.orEmpty(),
+                            stackPlaybackAction(account),
+                            playAlbum,
+                            playStack,
+                            addAlbumToStack,
+                            ejectAlbum,
+                            setAlbumFavourite,
+                            openArtist,
+                        )
                         PhoneSection.SETTINGS -> SettingsScreen(account, connected, connect, reauthorize, refresh, preview)
                     }
                 }
@@ -482,6 +494,19 @@ private fun DiscoverScreen(
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Discover", "Build your next stack", "Browse albums you already know, watch favourite artists for new releases, or search beyond your library.") }
         item {
+            SpotifySearchCard(
+                query = query,
+                connected = connected,
+                loading = searchLoading,
+                onQueryChange = {
+                    query = it
+                    if (searchResults != null) clearSearch()
+                },
+                submit = submitSearch,
+            )
+        }
+        if (searchResults == null) {
+        item {
             DarkFeatureCard(
                 eyebrow = "From artists you watch",
                 title = "New releases",
@@ -531,34 +556,6 @@ private fun DiscoverScreen(
                 }
             }
         }
-        item {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 18.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Raised).padding(16.dp)) {
-                Label("Search beyond your library")
-                Text("Find any artist or album on Spotify, then save it or load it straight into your stack.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 8.dp))
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = {
-                        query = it
-                        if (searchResults != null) clearSearch()
-                    },
-                    enabled = connected && !searchLoading,
-                    singleLine = true,
-                    label = { Text("Artist or album") },
-                    placeholder = { Text("Try Joni Mitchell or Blue") },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Button(
-                    onClick = submitSearch,
-                    enabled = connected && query.isNotBlank() && !searchLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                ) {
-                    Text(if (searchLoading) "SEARCHING…" else "SEARCH SPOTIFY", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                }
-                if (!connected) Text("Connect Spotify in Settings to search its catalogue.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 9.dp))
-            }
         }
         if (searchResults != null) {
             if (searchResults.artists.isNotEmpty()) {
@@ -585,6 +582,40 @@ private fun DiscoverScreen(
         }
         item { GatewayCard("Your collection", "Return to your favourites", "Browse the albums you have deliberately kept close.", "Browse collection", openCollection) }
         item { GatewayCard("On your changer", "${stack.size} album${if (stack.size == 1) "" else "s"} loaded", "Flick through your focused rotation and start the complete stack.", "Open stack", openStack) }
+    }
+}
+
+@Composable
+private fun SpotifySearchCard(
+    query: String,
+    connected: Boolean,
+    loading: Boolean,
+    onQueryChange: (String) -> Unit,
+    submit: () -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Raised).padding(16.dp)) {
+        Label("Search Spotify")
+        Text("Find any artist or album, then save it or load it straight into your stack.", color = Muted, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 8.dp))
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            enabled = connected && !loading,
+            singleLine = true,
+            label = { Text("Artist or album") },
+            placeholder = { Text("Try Joni Mitchell or Blue") },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { submit() }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(
+            onClick = submit,
+            enabled = connected && query.isNotBlank() && !loading,
+            colors = ButtonDefaults.buttonColors(containerColor = Acid, contentColor = DeepInk),
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        ) {
+            Text(if (loading) "SEARCHING…" else "SEARCH SPOTIFY", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+        }
+        if (!connected) Text("Connect Spotify in Settings to search its catalogue.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 9.dp))
     }
 }
 
@@ -620,11 +651,11 @@ private fun DiscoveryAlbumCard(
         AlbumArtwork(album.asLibraryNode(), Modifier.fillMaxWidth().aspectRatio(1f).clickable { playAlbum(album.id) }, 13)
         Text(album.title, color = Ink, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         Text(album.artistAndYear(), color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-        StackAction(if (inStack) "✓ In stack" else "+ Add to stack", Modifier.fillMaxWidth()) {
+        StackAction(if (inStack) "✓ In stack" else "+ Add to stack", Modifier.fillMaxWidth(), selected = inStack, enabled = !inStack) {
             if (!inStack) addAlbumToStack(album)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            StackAction(if (favourite) "★ Saved" else "☆ Save", Modifier.weight(1f)) {
+            StackAction(if (favourite) "★ Saved" else "☆ Save", Modifier.weight(1f), selected = favourite) {
                 setAlbumFavourite(album, !favourite)
             }
             if (album.artistId != null) {
@@ -927,12 +958,12 @@ private fun AlbumActionCard(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 11.dp)) {
             StackAction("Play", Modifier.weight(1f)) { playAlbum(album.id) }
-            StackAction(if (inStack) "✓ In stack" else "+ Add to stack", Modifier.weight(1f)) {
+            StackAction(if (inStack) "✓ In stack" else "+ Add to stack", Modifier.weight(1f), selected = inStack, enabled = !inStack) {
                 if (!inStack) addAlbumToStack(album)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            StackAction(if (favourite) "★ Favourited" else "☆ Favourite", Modifier.weight(1f)) {
+            StackAction(if (favourite) "★ Favourited" else "☆ Favourite", Modifier.weight(1f), selected = favourite) {
                 setAlbumFavourite(album, !favourite)
             }
             if (showArtistAction && album.artistId != null) {
@@ -1032,13 +1063,21 @@ private fun ArtistDetailScreen(
 @Composable
 private fun StackScreen(
     library: AlbumDjLibrary,
+    history: List<RotationHistoryEntry>,
     playbackAction: StackPlaybackAction,
     playAlbum: (String) -> Unit,
     playStack: () -> Unit,
+    addAlbumToStack: (Album) -> Unit,
     ejectAlbum: (String) -> Unit,
     setAlbumFavourite: (Album, Boolean) -> Unit,
     openArtist: (Artist) -> Unit,
 ) {
+    var showHistory by remember { mutableStateOf(false) }
+    BackHandler(enabled = showHistory) { showHistory = false }
+    if (showHistory) {
+        StackHistoryScreen(history, library, { showHistory = false }, addAlbumToStack)
+        return
+    }
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
     val contentSections = stackContentSections(stack.isNotEmpty())
     val pagerState = rememberPagerState(pageCount = { stack.size })
@@ -1047,9 +1086,16 @@ private fun StackScreen(
         item { PageIntro("Multi-disc changer", "Your album stack", "Flick through this focused rotation or start every loaded album.") }
         if (stack.isEmpty()) {
             item { EmptyCard("Nothing loaded", "Add albums to your stack on the web, then refresh in Settings.") }
+            if (history.isNotEmpty()) {
+                item {
+                    OutlinedButton(onClick = { showHistory = true }, modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
+                        Text("VIEW STACK HISTORY · ${history.size}", color = Ink, fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         } else {
             if (contentSections.firstOrNull() == StackContentSection.PLAYBACK) {
-                item { StackPlaybackCard(stack.size, playbackAction, playStack) }
+                item { StackPlaybackCard(stack.size, history.size, playbackAction, playStack) { showHistory = true } }
             }
             item {
                 HorizontalPager(
@@ -1109,7 +1155,147 @@ private fun StackScreen(
 }
 
 @Composable
-private fun StackPlaybackCard(albumCount: Int, playbackAction: StackPlaybackAction, playStack: () -> Unit) {
+private fun StackHistoryScreen(
+    history: List<RotationHistoryEntry>,
+    library: AlbumDjLibrary,
+    close: () -> Unit,
+    addAlbumToStack: (Album) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf(StackHistoryKind.ALL) }
+    var order by remember { mutableStateOf(StackHistoryOrder.RECENT) }
+    val now = System.currentTimeMillis()
+    val entries = stackHistoryView(history, query, kind, order, now)
+    LazyColumn(contentPadding = PaddingValues(bottom = 28.dp)) {
+        item {
+            Text(
+                "← BACK TO STACK",
+                color = Acid,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable(onClick = close).padding(horizontal = 18.dp, vertical = 15.dp),
+            )
+        }
+        item { PageIntro("Listening archive", "Stack history", "See what has been loaded, how often it returned, and how long each album stayed in focus.") }
+        item {
+            Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Filter history") },
+                    placeholder = { Text("Album or artist") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                    CollectionFilter("All", kind == StackHistoryKind.ALL, Modifier.weight(1f)) { kind = StackHistoryKind.ALL }
+                    CollectionFilter("In stack", kind == StackHistoryKind.CURRENT, Modifier.weight(1f)) { kind = StackHistoryKind.CURRENT }
+                    CollectionFilter("Past", kind == StackHistoryKind.PAST, Modifier.weight(1f)) { kind = StackHistoryKind.PAST }
+                }
+            }
+        }
+        item {
+            CollectionHeading(
+                title = "${entries.size} album${if (entries.size == 1) "" else "s"}",
+                action = when (order) {
+                    StackHistoryOrder.RECENT -> "RECENT"
+                    StackHistoryOrder.TOTAL_TIME -> "TOTAL TIME"
+                    StackHistoryOrder.TIMES_ADDED -> "MOST LOADED"
+                    StackHistoryOrder.ALBUM -> "ALBUM A–Z"
+                },
+                onAction = {
+                    order = when (order) {
+                        StackHistoryOrder.RECENT -> StackHistoryOrder.TOTAL_TIME
+                        StackHistoryOrder.TOTAL_TIME -> StackHistoryOrder.TIMES_ADDED
+                        StackHistoryOrder.TIMES_ADDED -> StackHistoryOrder.ALBUM
+                        StackHistoryOrder.ALBUM -> StackHistoryOrder.RECENT
+                    }
+                },
+            )
+        }
+        if (entries.isEmpty()) {
+            item { EmptyCard("No history matches", "Try another filter, or add an album to your stack to begin its history.") }
+        } else {
+            items(entries, key = { it.album.id }) { entry ->
+                StackHistoryCard(entry, entry.album.id in library.stack.map { it.id }.toSet(), now, addAlbumToStack)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StackHistoryCard(
+    entry: RotationHistoryEntry,
+    inStack: Boolean,
+    now: Long,
+    addAlbumToStack: (Album) -> Unit,
+) {
+    val activeDuration = activeStackDuration(entry, now)
+    Column(
+        Modifier.padding(horizontal = 18.dp, vertical = 6.dp).fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp)).background(Panel).padding(13.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AlbumArtwork(entry.album.asLibraryNode(), Modifier.size(68.dp), 10)
+            Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(entry.album.title, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(entry.album.artistAndYear(), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                Text(
+                    if (inStack) "IN STACK · ${formatStackDuration(activeDuration)}"
+                    else "LAST STAY · ${formatStackDuration(entry.lastDurationMs ?: 0)}",
+                    color = if (inStack) Acid else Ink,
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+            }
+        }
+        Text(
+            buildString {
+                append("Loaded ${entry.timesAdded} time${if (entry.timesAdded == 1) "" else "s"} · ${formatStackDuration(totalStackDuration(entry, now))} total")
+                if (!inStack && entry.lastRemovedAt != null) {
+                    append(" · removed ")
+                    append(DateUtils.getRelativeTimeSpanString(entry.lastRemovedAt, now, DateUtils.MINUTE_IN_MILLIS).toString())
+                }
+            },
+            color = Muted,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        StackAction(
+            label = if (inStack) "✓ In stack" else "+ Add to stack again",
+            selected = inStack,
+            enabled = !inStack,
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        ) {
+            if (!inStack) addAlbumToStack(entry.album)
+        }
+    }
+}
+
+private fun formatStackDuration(durationMs: Long): String {
+    val minutes = durationMs.coerceAtLeast(0) / DateUtils.MINUTE_IN_MILLIS
+    val hours = minutes / 60
+    val days = hours / 24
+    return when {
+        days > 0 -> "$days day${if (days == 1L) "" else "s"}"
+        hours > 0 -> "$hours hour${if (hours == 1L) "" else "s"}"
+        minutes > 0 -> "$minutes min"
+        else -> "<1 min"
+    }
+}
+
+@Composable
+private fun StackPlaybackCard(
+    albumCount: Int,
+    historyCount: Int,
+    playbackAction: StackPlaybackAction,
+    playStack: () -> Unit,
+    openHistory: () -> Unit,
+) {
     Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel).padding(16.dp)) {
         Label("Ready to listen")
         Text(
@@ -1133,6 +1319,9 @@ private fun StackPlaybackCard(albumCount: Int, playbackAction: StackPlaybackActi
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
             )
+        }
+        OutlinedButton(onClick = openHistory, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text("VIEW STACK HISTORY · $historyCount", color = Ink, fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1217,15 +1406,22 @@ private fun StackOutlinedAction(
 }
 
 @Composable
-private fun StackAction(label: String, modifier: Modifier = Modifier, danger: Boolean = false, action: () -> Unit) {
+private fun StackAction(
+    label: String,
+    modifier: Modifier = Modifier,
+    danger: Boolean = false,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    action: () -> Unit,
+) {
     Surface(
-        color = Raised,
+        color = if (selected) Acid else Raised,
         shape = RoundedCornerShape(12.dp),
-        modifier = modifier.clickable(onClick = action),
+        modifier = modifier.clickable(enabled = enabled, onClick = action),
     ) {
         Text(
             label,
-            color = if (danger) Coral else Ink,
+            color = if (selected) DeepInk else if (danger) Coral else Ink,
             fontSize = 10.sp,
             lineHeight = 13.sp,
             fontWeight = FontWeight.Bold,

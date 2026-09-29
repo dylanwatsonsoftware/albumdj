@@ -18,6 +18,18 @@ data class Rotation(
     val albumIds: List<String>,
     val durationDays: Int,
     val mode: String,
+    val history: List<RotationHistoryEntry> = emptyList(),
+)
+
+data class RotationHistoryEntry(
+    val album: Album,
+    val firstAddedAt: Long?,
+    val lastAddedAt: Long?,
+    val currentAddedAt: Long?,
+    val lastRemovedAt: Long?,
+    val totalDurationMs: Long,
+    val lastDurationMs: Long?,
+    val timesAdded: Int,
 )
 
 data class Artist(
@@ -47,6 +59,7 @@ object AlbumDjAccountJson {
                 albumIds = rotation.optJSONArray("albumIds").toStrings(),
                 durationDays = rotation.optInt("durationDays", 7),
                 mode = rotation.optString("mode", "sequential"),
+                history = rotation.optJSONArray("history").toHistory(),
             ),
             library = AlbumDjLibrary(
                 stack = rotation.optJSONArray("albums").toAlbums(),
@@ -57,6 +70,31 @@ object AlbumDjAccountJson {
         )
     }
 }
+
+private fun JSONArray?.toHistory(): List<RotationHistoryEntry> {
+    if (this == null) return emptyList()
+    return buildList {
+        for (index in 0 until length()) {
+            val entry = optJSONObject(index) ?: continue
+            val albumJson = entry.optJSONObject("album") ?: continue
+            val album = JSONArray().put(albumJson).toAlbums().firstOrNull() ?: continue
+            add(
+                RotationHistoryEntry(
+                    album = album,
+                    firstAddedAt = entry.optLongOrNull("firstAddedAt"),
+                    lastAddedAt = entry.optLongOrNull("lastAddedAt"),
+                    currentAddedAt = entry.optLongOrNull("currentAddedAt"),
+                    lastRemovedAt = entry.optLongOrNull("lastRemovedAt"),
+                    totalDurationMs = entry.optLong("totalDurationMs", 0),
+                    lastDurationMs = entry.optLongOrNull("lastDurationMs"),
+                    timesAdded = entry.optInt("timesAdded", 1),
+                ),
+            )
+        }
+    }
+}
+
+private fun JSONObject.optLongOrNull(name: String): Long? = if (has(name) && !isNull(name)) optLong(name) else null
 
 private fun JSONArray?.toStrings(): List<String> {
     if (this == null) return emptyList()

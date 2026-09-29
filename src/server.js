@@ -124,6 +124,10 @@ export function createPrototypeHandler(options = {}) {
       ...snapshot,
       albumIds,
       albums: albumIds.map((id) => albumById.get(id)),
+      history: (snapshot.history ?? []).map((entry) => ({
+        ...entry,
+        album: entry.album ?? albumById.get(entry.albumId) ?? null,
+      })).filter(({ album }) => album),
     };
   }
 
@@ -367,6 +371,7 @@ export function createPrototypeHandler(options = {}) {
           albumIds: nextRotation.albumIds,
           durationDays: nextRotation.durationDays,
           mode: nextRotation.mode,
+          albums: player.snapshot().albums,
         });
         await persistRotation();
         return sendJson(response, 200, rotationState(player, rotation));

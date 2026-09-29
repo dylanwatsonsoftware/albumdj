@@ -699,8 +699,14 @@ test("adds a discovered Spotify album to the catalogue and rotation together", a
   });
 });
 
-test("drops stale album ids from a saved rotation before the client edits it", async () => {
-  let configured = { albumIds: ["missing-album", "discovery"], durationDays: 7, mode: "sequential", expiresAt: 123 };
+test("drops stale album ids and enriches migrated stack history before the client edits it", async () => {
+  let configured = {
+    albumIds: ["missing-album", "discovery"],
+    durationDays: 7,
+    mode: "sequential",
+    expiresAt: 123,
+    history: [{ albumId: "discovery", album: null, firstAddedAt: 1, lastAddedAt: 1, currentAddedAt: 1, totalDurationMs: 0, timesAdded: 1 }],
+  };
   const rotation = {
     snapshot: () => configured,
     update: (next) => { configured = { ...next, expiresAt: 456 }; return configured; },
@@ -710,6 +716,7 @@ test("drops stale album ids from a saved rotation before the client edits it", a
     const saved = await (await fetch(`${baseUrl}/api/rotation`)).json();
     assert.deepEqual(saved.albumIds, ["discovery"]);
     assert.deepEqual(saved.albums.map(({ id }) => id), ["discovery"]);
+    assert.equal(saved.history[0].album.title, "Discovery");
 
     const updated = await fetch(`${baseUrl}/api/rotation`, {
       method: "PUT",

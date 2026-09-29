@@ -17,6 +17,10 @@ test("persists a temporary album rotation for one or two weeks", () => {
     durationDays: 14,
     mode: "sequential",
     expiresAt: 1_209_601_000,
+    history: [
+      { albumId: "a", album: null, firstAddedAt: 1_000, lastAddedAt: 1_000, lastRemovedAt: null, currentAddedAt: 1_000, totalDurationMs: 0, lastDurationMs: null, timesAdded: 1 },
+      { albumId: "b", album: null, firstAddedAt: 1_000, lastAddedAt: 1_000, lastRemovedAt: null, currentAddedAt: 1_000, totalDurationMs: 0, lastDurationMs: null, timesAdded: 1 },
+    ],
   });
   assert.deepEqual(saved, rotation);
 });
@@ -31,12 +35,59 @@ test("clears an expired rotation", () => {
     now: () => 1_000,
   });
 
-  assert.deepEqual(shelf.snapshot(), {
-    albumIds: [], durationDays: 7, mode: "sequential", expiresAt: null,
+  const expired = shelf.snapshot();
+  assert.deepEqual(expired.albumIds, []);
+  assert.equal(expired.expiresAt, null);
+  assert.equal(expired.history[0].albumId, "a");
+  assert.equal(expired.history[0].currentAddedAt, null);
+  assert.deepEqual(saved, expired);
+});
+
+test("records how often and how long albums have been in the stack", () => {
+  let currentTime = 1_000;
+  const shelf = createRotationShelf({
+    store: { load: () => null, save: () => {} },
+    now: () => currentTime,
   });
-  assert.deepEqual(saved, {
-    albumIds: [], durationDays: 7, mode: "sequential", expiresAt: null,
+  const album = { id: "blue", title: "Blue", artist: "Joni Mitchell", releaseDate: "1971-06-22" };
+
+  shelf.update({ albumIds: ["blue"], durationDays: 7, mode: "sequential", albums: [album] });
+  currentTime = 6_000;
+  shelf.update({ albumIds: [], durationDays: 7, mode: "sequential", albums: [album] });
+  currentTime = 10_000;
+  const rotation = shelf.update({ albumIds: ["blue"], durationDays: 14, mode: "shuffle", albums: [album] });
+
+  assert.deepEqual(rotation.history, [{
+    albumId: "blue",
+    album,
+    firstAddedAt: 1_000,
+    lastAddedAt: 10_000,
+    lastRemovedAt: 6_000,
+    currentAddedAt: 10_000,
+    totalDurationMs: 5_000,
+    lastDurationMs: 5_000,
+    timesAdded: 2,
+  }]);
+});
+
+test("closes active history entries when a stack expires", () => {
+  let currentTime = 1_000;
+  const shelf = createRotationShelf({ store: { load: () => null, save: () => {} }, now: () => currentTime });
+  shelf.update({
+    albumIds: ["blue"],
+    durationDays: 7,
+    mode: "sequential",
+    albums: [{ id: "blue", title: "Blue", artist: "Joni Mitchell" }],
   });
+  const expiresAt = shelf.snapshot().expiresAt;
+  currentTime = expiresAt + 1;
+
+  const expired = shelf.snapshot();
+
+  assert.deepEqual(expired.albumIds, []);
+  assert.equal(expired.history[0].currentAddedAt, null);
+  assert.equal(expired.history[0].lastRemovedAt, expiresAt);
+  assert.equal(expired.history[0].totalDurationMs, expiresAt - 1_000);
 });
 
 test("builds album-by-album playback in the selected order", () => {
