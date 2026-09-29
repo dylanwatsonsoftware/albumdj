@@ -8,3 +8,4 @@
 - Every state-changing UI control must visibly reflect its current, selected, completed, disabled, or loading state; never rely on a transient message alone to confirm the change.
 - Make safe state-changing actions feel immediate by updating the UI optimistically, persisting in the background, and rolling back with a clear error if persistence fails.
 - Android nested views and temporary modes must participate in system back navigation so the edge-swipe gesture unwinds one level before exiting the app.
+- Treat cached data as usable offline state: background refreshes must not interrupt the UI or surface connectivity errors; show network failures when an explicit user action needs the network.

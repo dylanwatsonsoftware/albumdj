@@ -20,6 +20,14 @@ val DEFAULT_PHONE_SECTION = PhoneSection.STACK
 
 const val SUCCESS_NOTICE_DURATION_MS = 3_500L
 
+enum class LibrarySyncVisibility {
+    SILENT,
+    VISIBLE,
+}
+
+fun librarySyncVisibility(hasCachedLibrary: Boolean, userInitiated: Boolean): LibrarySyncVisibility =
+    if (hasCachedLibrary && !userInitiated) LibrarySyncVisibility.SILENT else LibrarySyncVisibility.VISIBLE
+
 fun noticeAutoDismissMillis(notice: String?): Long? = notice
     ?.takeIf(String::isNotBlank)
     ?.let { SUCCESS_NOTICE_DURATION_MS }

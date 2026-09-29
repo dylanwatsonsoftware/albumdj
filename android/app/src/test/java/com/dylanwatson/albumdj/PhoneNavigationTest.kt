@@ -30,6 +30,13 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `cached library refreshes stay silent unless the user requested one`() {
+        assertEquals(LibrarySyncVisibility.SILENT, librarySyncVisibility(hasCachedLibrary = true, userInitiated = false))
+        assertEquals(LibrarySyncVisibility.VISIBLE, librarySyncVisibility(hasCachedLibrary = false, userInitiated = false))
+        assertEquals(LibrarySyncVisibility.VISIBLE, librarySyncVisibility(hasCachedLibrary = true, userInitiated = true))
+    }
+
+    @Test
     fun `each music section resolves the right account collection`() {
         assertEquals(listOf("Recent album"), albumsForPhoneSection(PhoneSection.DISCOVER, library).map { it.title })
         assertEquals(listOf("Favourite album"), albumsForPhoneSection(PhoneSection.COLLECTION, library).map { it.title })

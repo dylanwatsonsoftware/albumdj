@@ -154,6 +154,7 @@ private fun AlbumDjApp(
     var notice by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
+    var manualRefreshRequested by remember { mutableStateOf(false) }
     var carPreview by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<SearchResults?>(null) }
     var searchLoading by remember { mutableStateOf(false) }
@@ -165,13 +166,28 @@ private fun AlbumDjApp(
 
     LaunchedEffect(sessionToken, authRevision, refresh) {
         if (sessionToken == null) return@LaunchedEffect
-        loading = true
-        error = null
-        notice = null
+        val accountAtStart = account
+        val userInitiated = manualRefreshRequested
+        val visibility = librarySyncVisibility(
+            hasCachedLibrary = accountAtStart != null,
+            userInitiated = userInitiated,
+        )
+        val visible = visibility == LibrarySyncVisibility.VISIBLE
+        if (visible) {
+            loading = true
+            error = null
+            notice = null
+        }
         runCatching { withContext(Dispatchers.IO) { repository.sync() } }
-            .onSuccess { account = it }
-            .onFailure { error = it.message }
-        loading = false
+            .onSuccess { refreshedAccount ->
+                if (account === accountAtStart) account = refreshedAccount
+                if (userInitiated) notice = "Library refreshed."
+            }
+            .onFailure {
+                if (visible) error = "Couldn’t refresh Album DJ. Check your connection and try again."
+            }
+        if (visible) loading = false
+        manualRefreshRequested = false
     }
 
     LaunchedEffect(notice) {
@@ -312,7 +328,10 @@ private fun AlbumDjApp(
                 notice = notice,
                 connect = connect,
                 reauthorize = reauthorize,
-                refresh = { refresh += 1 },
+                refresh = {
+                    manualRefreshRequested = true
+                    refresh += 1
+                },
                 preview = { carPreview = true },
                 playAlbum = playAlbum,
                 searchResults = searchResults,
