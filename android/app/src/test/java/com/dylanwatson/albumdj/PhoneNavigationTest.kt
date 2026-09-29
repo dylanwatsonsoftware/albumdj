@@ -224,9 +224,10 @@ class PhoneNavigationTest {
     @Test
     fun `stack playback action is the first control after the heading`() {
         assertEquals(
-            listOf(StackContentSection.PLAYBACK, StackContentSection.COVERFLOW, StackContentSection.ALBUM_DETAILS, StackContentSection.ALBUM_LIST),
-            stackContentSections(hasAlbums = true),
+            listOf(StackContentSection.PLAYBACK, StackContentSection.COVERFLOW, StackContentSection.ALBUM_DETAILS, StackContentSection.ALBUM_LIST, StackContentSection.HISTORY),
+            stackContentSections(hasAlbums = true, hasHistory = true),
         )
+        assertEquals(listOf(StackContentSection.HISTORY), stackContentSections(hasAlbums = false, hasHistory = true))
     }
 
     @Test

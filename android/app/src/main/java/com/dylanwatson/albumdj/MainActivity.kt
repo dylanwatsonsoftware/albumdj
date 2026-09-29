@@ -1117,23 +1117,16 @@ private fun StackScreen(
         return
     }
     val stack = albumsForPhoneSection(PhoneSection.STACK, library)
-    val contentSections = stackContentSections(stack.isNotEmpty())
+    val contentSections = stackContentSections(stack.isNotEmpty(), history.isNotEmpty())
     val pagerState = rememberPagerState(pageCount = { stack.size })
     val coroutineScope = rememberCoroutineScope()
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item { PageIntro("Multi-disc changer", "Your album stack", "Flick through this focused rotation or start every loaded album.") }
         if (stack.isEmpty()) {
             item { EmptyCard("Nothing loaded", "Add albums to your stack on the web, then refresh in Settings.") }
-            if (history.isNotEmpty()) {
-                item {
-                    OutlinedButton(onClick = { showHistory = true }, modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
-                        Text("VIEW STACK HISTORY · ${history.size}", color = Ink, fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
         } else {
             if (contentSections.firstOrNull() == StackContentSection.PLAYBACK) {
-                item { StackPlaybackCard(stack.size, history.size, playbackAction, playStack) { showHistory = true } }
+                item { StackPlaybackCard(stack.size, playbackAction, playStack) }
             }
             item {
                 HorizontalPager(
@@ -1187,6 +1180,23 @@ private fun StackScreen(
                     setAlbumFavourite = setAlbumFavourite,
                     openArtist = openArtist,
                 )
+            }
+        }
+        if (StackContentSection.HISTORY in contentSections) {
+            item {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp),
+                ) {
+                    OutlinedButton(onClick = { showHistory = true }) {
+                        Text(
+                            "View stack history · ${history.size}",
+                            color = Muted,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                        )
+                    }
+                }
             }
         }
     }
@@ -1329,10 +1339,8 @@ private fun formatStackDuration(durationMs: Long): String {
 @Composable
 private fun StackPlaybackCard(
     albumCount: Int,
-    historyCount: Int,
     playbackAction: StackPlaybackAction,
     playStack: () -> Unit,
-    openHistory: () -> Unit,
 ) {
     Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Panel).padding(16.dp)) {
         Label("Ready to listen")
@@ -1357,9 +1365,6 @@ private fun StackPlaybackCard(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp,
             )
-        }
-        OutlinedButton(onClick = openHistory, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Text("VIEW STACK HISTORY · $historyCount", color = Ink, fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

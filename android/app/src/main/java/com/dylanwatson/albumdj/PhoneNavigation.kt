@@ -40,6 +40,7 @@ enum class StackContentSection {
     COVERFLOW,
     ALBUM_DETAILS,
     ALBUM_LIST,
+    HISTORY,
 }
 
 enum class StackAlbumAction {
@@ -169,15 +170,14 @@ fun discoverBackAction(hasSearchResults: Boolean): DiscoverBackAction = if (hasS
     DiscoverBackAction.PASS_THROUGH
 }
 
-fun stackContentSections(hasAlbums: Boolean): List<StackContentSection> = if (hasAlbums) {
-    listOf(
-        StackContentSection.PLAYBACK,
-        StackContentSection.COVERFLOW,
-        StackContentSection.ALBUM_DETAILS,
-        StackContentSection.ALBUM_LIST,
-    )
-} else {
-    emptyList()
+fun stackContentSections(hasAlbums: Boolean, hasHistory: Boolean = false): List<StackContentSection> = buildList {
+    if (hasAlbums) {
+        add(StackContentSection.PLAYBACK)
+        add(StackContentSection.COVERFLOW)
+        add(StackContentSection.ALBUM_DETAILS)
+        add(StackContentSection.ALBUM_LIST)
+    }
+    if (hasHistory) add(StackContentSection.HISTORY)
 }
 
 fun stackAlbumActions(hasArtist: Boolean): List<StackAlbumAction> = buildList {
