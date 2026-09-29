@@ -81,6 +81,14 @@ class PhoneNavigationTest {
     }
 
     @Test
+    fun `album play actions can open the Spotify album without waiting for the server`() {
+        assertEquals(
+            "https://open.spotify.com/album/an%20album%2Fid",
+            spotifyAlbumUrl("an album/id"),
+        )
+    }
+
+    @Test
     fun `success notices dismiss after a short readable interval`() {
         assertEquals(3_500L, noticeAutoDismissMillis("Blue was added to your stack."))
         assertEquals(null, noticeAutoDismissMillis(null))

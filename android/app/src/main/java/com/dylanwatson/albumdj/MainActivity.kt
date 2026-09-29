@@ -181,6 +181,7 @@ private fun AlbumDjApp(
     }
 
     val playAlbum: (String) -> Unit = { albumId ->
+        openSpotify(spotifyAlbumUrl(albumId))
         error = null
         notice = null
         loading = true
@@ -188,7 +189,6 @@ private fun AlbumDjApp(
             runCatching { withContext(Dispatchers.IO) { repository.playAlbum(albumId) } }
                 .onSuccess { playback ->
                     notice = albumPlaybackNotice(playback)
-                    playback.openUrl?.let(openSpotify)
                 }
                 .onFailure { error = it.message }
             loading = false

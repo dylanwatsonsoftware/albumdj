@@ -7,6 +7,7 @@ import com.dylanwatson.albumdj.data.RotationHistoryEntry
 import com.dylanwatson.albumdj.library.Album
 import com.dylanwatson.albumdj.library.AlbumDjLibrary
 import com.dylanwatson.albumdj.library.LibraryNode
+import java.net.URLEncoder
 
 enum class PhoneSection(val label: String, val glyph: String) {
     STACK("Stack", "▱"),
@@ -206,6 +207,11 @@ fun albumPlaybackNotice(playback: AlbumPlayback): String = if (playback.openUrl 
     "Playing on your selected Spotify device."
 } else {
     "Opening this album in Spotify…"
+}
+
+fun spotifyAlbumUrl(albumId: String): String {
+    val encodedId = URLEncoder.encode(albumId, "UTF-8").replace("+", "%20")
+    return "https://open.spotify.com/album/$encodedId"
 }
 
 fun albumsForPhoneSection(section: PhoneSection, library: AlbumDjLibrary): List<LibraryNode> = when (section) {
