@@ -27,6 +27,10 @@ function safelyDecode(value) {
 export function routeFromHash(hash) {
   const value = hash.replace(/^#/, "");
   const [path, query = ""] = value.split("?", 2);
+  if (path === "search") {
+    const searchQuery = new URLSearchParams(query).get("q")?.trim();
+    if (searchQuery) return { section: "home", view: "search", query: searchQuery, artist: null };
+  }
   if (path.startsWith("artist/")) {
     const id = safelyDecode(path.slice("artist/".length));
     if (id) {
@@ -61,4 +65,9 @@ export function getNavigationIntent(section, focusTarget) {
       ? focusTarget
       : null,
   };
+}
+
+export function buildSearchHash(query) {
+  const trimmed = query.trim();
+  return trimmed ? `#search?${new URLSearchParams({ q: trimmed })}` : "#home";
 }

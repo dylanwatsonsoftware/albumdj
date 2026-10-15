@@ -53,11 +53,13 @@ import {
 import {
   artistBackAction,
   buildArtistHash,
+  buildSearchHash,
   getNavigationIntent,
   getNavigationState,
   routeFromHash,
   writeNavigationHistory,
 } from "./navigation.js";
+import { createSearchNavigation } from "./search-navigation.js";
 import { spotifyOpenUrl } from "./playback-fallback.js";
 
 const targetsElement = document.querySelector("#targets");
@@ -320,6 +322,7 @@ function renderTargets() {
 }
 
 function showAppSection(section, { updateHash = true, replaceHash = false } = {}) {
+  searchNavigation.reset();
   const navigation = getNavigationState(section);
   libraryBrowser.hidden = false;
   artistDiscography.hidden = true;
@@ -908,6 +911,7 @@ function renderAutocomplete() {
 }
 
 function selectAutocompleteSuggestion(suggestion) {
+  searchNavigation.reset();
   searchInput.value = suggestion.primary;
   activeCoverIndex = 0;
   renderAlbums();
@@ -972,26 +976,45 @@ function handleAutocompleteKeydown(event) {
   renderAutocomplete();
 }
 
+const searchNavigation = createSearchNavigation({
+  history,
+  location,
+  async load(query) {
+    if (cachedSearch.query === query && cachedSearch.results) return cachedSearch.results;
+    const results = await request(`/api/spotify/search?q=${encodeURIComponent(query)}`);
+    cachedSearch = { query, results };
+    return results;
+  },
+  onQuery(query) {
+    searchInput.value = query;
+    closeAutocomplete();
+    renderDiscoveryResults({ heading: `Searching Spotify for “${query}”…`, emptyMessage: "Loading results…" });
+  },
+  onResults(results, query) {
+    renderDiscoveryResults({ heading: `Spotify results for “${query}”`, ...results });
+  },
+  onError(error) {
+    renderDiscoveryResults({ heading: error.message, emptyMessage: "Try searching again." });
+  },
+  onLoading(loading) {
+    const button = searchForm.querySelector("button");
+    button.disabled = loading;
+    button.textContent = loading ? "Searching…" : "Search Spotify";
+    discoveryResultsElement.setAttribute("aria-busy", String(loading));
+  },
+  onClear() {
+    searchInput.value = "";
+    discoveryResultsElement.replaceChildren();
+    closeAutocomplete();
+  },
+});
+
 async function searchSpotify(event) {
   event.preventDefault();
   const query = searchInput.value.trim();
   if (!query) return;
-  closeAutocomplete();
-  const button = searchForm.querySelector("button");
-  button.disabled = true;
-  button.textContent = "Searching…";
-  try {
-    const results = cachedSearch.query === query && cachedSearch.results
-      ? cachedSearch.results
-      : await request(`/api/spotify/search?q=${encodeURIComponent(query)}`);
-    cachedSearch = { query, results };
-    renderDiscoveryResults({ heading: `Spotify results for “${query}”`, ...results });
-  } catch (error) {
-    renderDiscoveryResults({ heading: error.message });
-  } finally {
-    button.disabled = false;
-    button.textContent = "Search Spotify";
-  }
+  showAppSection("home", { updateHash: false });
+  await searchNavigation.show(query);
 }
 
 async function showArtistReleases(artist, button = null, { updateHash = true } = {}) {
@@ -1043,6 +1066,7 @@ function showLocationRoute() {
     return;
   }
   showAppSection(route.section, { updateHash: false });
+  if (route.view === "search") void searchNavigation.show(route.query, { updateHash: false });
 }
 
 async function playDiscoveredAlbum(albumId, button) {
@@ -1595,7 +1619,7 @@ async function startApp() {
   const initialRoute = routeFromHash(location.hash);
   const initialHash = initialRoute.view === "artist"
     ? buildArtistHash(initialRoute.artist)
-    : `#${initialRoute.section}`;
+    : initialRoute.view === "search" ? buildSearchHash(initialRoute.query) : `#${initialRoute.section}`;
   writeNavigationHistory(history, initialHash, { replace: true });
   window.addEventListener("popstate", showLocationRoute);
   showLocationRoute();

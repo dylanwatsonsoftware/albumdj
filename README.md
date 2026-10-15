@@ -16,6 +16,10 @@ npm start
 
 Register the same redirect URI in the Spotify developer dashboard. Then open the public HTTPS address on the phone and connect Spotify. Each page load re-imports saved albums and refreshes Spotify devices. Returning to the page after opening Spotify also refreshes devices automatically.
 
+## Share a search
+
+Submit a Spotify search, then copy the page URL (for example, `#search?q=Boy+%26+Bear`). Opening that link restores the query and fetches its results using the recipient’s own Spotify connection. Browser Back and Forward restore searches and artist pages. Search results remain private to the current Spotify session; links contain only the query.
+
 ## Pair and scan a card
 
 1. Choose a playback device.

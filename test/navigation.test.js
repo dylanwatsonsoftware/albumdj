@@ -81,3 +81,14 @@ test("returns through app history from an artist page and falls back home for a 
   assert.equal(artistBackAction({ albumDj: true }), "home");
   assert.equal(artistBackAction(null), "home");
 });
+
+test("round trips a search query including punctuation and Unicode", async () => {
+  const { buildSearchHash } = await import("../public/navigation.js");
+  const hash = buildSearchHash("  Björk & AC/DC? #1  ");
+  assert.equal(hash, "#search?q=Bj%C3%B6rk+%26+AC%2FDC%3F+%231");
+  assert.deepEqual(routeFromHash(hash), {
+    section: "home", view: "search", query: "Björk & AC/DC? #1", artist: null,
+  });
+  assert.equal(buildSearchHash("  "), "#home");
+  assert.deepEqual(routeFromHash("#search?q=%20"), routeFromHash("#home"));
+});
